@@ -1,0 +1,52 @@
+/u/dmr/ukb-pgx/comical/comical/comical/lib/python3.11/site-packages/umap/distances.py:1063: NumbaDeprecationWarning: The 'nopython' keyword argument was not supplied to the 'numba.jit' decorator. The implicit default value for this argument is currently False, but it will be changed to True in Numba 0.59.0. See https://numba.readthedocs.io/en/stable/reference/deprecation.html#deprecation-of-object-mode-fall-back-behaviour-when-using-jit for details.
+  @numba.jit()
+/u/dmr/ukb-pgx/comical/comical/comical/lib/python3.11/site-packages/umap/distances.py:1071: NumbaDeprecationWarning: The 'nopython' keyword argument was not supplied to the 'numba.jit' decorator. The implicit default value for this argument is currently False, but it will be changed to True in Numba 0.59.0. See https://numba.readthedocs.io/en/stable/reference/deprecation.html#deprecation-of-object-mode-fall-back-behaviour-when-using-jit for details.
+  @numba.jit()
+/u/dmr/ukb-pgx/comical/comical/comical/lib/python3.11/site-packages/umap/distances.py:1086: NumbaDeprecationWarning: The 'nopython' keyword argument was not supplied to the 'numba.jit' decorator. The implicit default value for this argument is currently False, but it will be changed to True in Numba 0.59.0. See https://numba.readthedocs.io/en/stable/reference/deprecation.html#deprecation-of-object-mode-fall-back-behaviour-when-using-jit for details.
+  @numba.jit()
+/u/dmr/ukb-pgx/comical/comical/comical/lib/python3.11/site-packages/umap/umap_.py:660: NumbaDeprecationWarning: The 'nopython' keyword argument was not supplied to the 'numba.jit' decorator. The implicit default value for this argument is currently False, but it will be changed to True in Numba 0.59.0. See https://numba.readthedocs.io/en/stable/reference/deprecation.html#deprecation-of-object-mode-fall-back-behaviour-when-using-jit for details.
+  @numba.jit()
+a
+c
+Traceback (most recent call last):
+  File "/dccstor/ukb-pgx/comical/comical/src/emb_plot.py", line 19, in <module>
+    X_embedded = TSNE(n_components=2, learning_rate='auto',init='random', perplexity=3).fit_transform(gen_emb[:500000])
+                                                                                                      ^^^^^^^
+NameError: name 'gen_emb' is not defined
+
+------------------------------------------------------------
+Sender: LSF System <rer@cccxc570.pok.ibm.com>
+Subject: Job 2517008: <python emb_plot.py> in cluster <cccCluster> Exited
+
+Job <python emb_plot.py> was submitted from host <cccxl015.pok.ibm.com> by user <dmr> in cluster <cccCluster> at Fri Aug 11 12:53:44 2023
+Job was executed on host(s) <16*cccxc570.pok.ibm.com>, in queue <x86_6h>, as user <dmr> in cluster <cccCluster> at Fri Aug 11 12:53:45 2023
+</u/dmr> was used as the home directory.
+</u/dmr/comical/src> was used as the working directory.
+Started at Fri Aug 11 12:53:45 2023
+Terminated at Fri Aug 11 12:55:52 2023
+Results reported at Fri Aug 11 12:55:52 2023
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+python emb_plot.py
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   100.19 sec.
+    Max Memory :                                 57674 MB
+    Average Memory :                             24744.84 MB
+    Total Requested Memory :                     942080.00 MB
+    Delta Memory :                               884406.00 MB
+    Max Swap :                                   -
+    Max Processes :                              3
+    Max Threads :                                13
+    Run time :                                   127 sec.
+    Turnaround time :                            128 sec.
+
+The output (if any) is above this job summary.
+
