@@ -9,6 +9,7 @@ from tqdm import tqdm
 import pickle
 from src.utils import idp_tokenization
 from collections import defaultdict
+from functools import reduce
 
 class dataset(Dataset):
     def load_seqs(self):
@@ -35,6 +36,13 @@ class dataset(Dataset):
         self.pairs = pd.read_csv(self.path_pairs)
         self.pairs.IDP = self.pairs.IDP.map(self.idp_map.Field_ID.to_dict())
 
+    def load_subj_labels(self):
+        self.subj_labels = pd.read_csv(self.path_subj_labels)
+        self.subj_labels = self.subj_labels.set_index('eid')
+        self.subj_labels = self.subj_labels[~self.subj_labels.index.duplicated(keep='first')]
+        self.subj_labels = self.subj_labels.loc[:,'Age']
+        # self.subj_labels = self.subj_labels.loc[self.matching_ids].sort_index()
+        # self.subj_labels = self.subj_labels.reset_index(drop=True)
     
     def get_iid_tensor_map(self):
         return self.iid_tensorID_map
@@ -46,14 +54,18 @@ class dataset(Dataset):
         self.load_seqs()
         self.load_idps()
         self.load_map_and_pairs()
+        if self.subject_based_pred_flag: self.load_subj_labels()
 
     def match_modalities(self):
-        self.matching_ids = np.intersect1d(self.seqs_idx, self.idps_idx)
+        self.matching_ids = reduce(np.intersect1d, (self.seqs_idx, self.idps_idx, self.subj_labels.index)) if self.subject_based_pred_flag else np.intersect1d(self.seqs_idx, self.idps_idx) 
         self.seqs = self.seqs.loc[self.matching_ids].sort_index()
         self.idps_filt = self.idps_filt.loc[self.matching_ids].sort_index()
         self.iid_tensorID_map = dict(zip(self.seqs.index,np.arange(len(self.seqs.index))))
         self.seqs = self.seqs.reset_index(drop=True)
         self.idps_filt = self.idps_filt.reset_index(drop=True)
+        if self.subject_based_pred_flag:
+            self.subj_labels = self.subj_labels.loc[self.matching_ids].sort_index()
+            self.subj_labels = self.subj_labels.reset_index(drop=True)
 
     def set_tabular_embeddings(self):
         self.embedded_idps = idp_tokenization('cpu',64,self.rnd_st,self.idps_filt.index,{'train':self.idps_filt.values.astype('float')})
@@ -177,14 +189,39 @@ class dataset(Dataset):
         self.emb_idps = stack(self.emb_idps)
 
     def tensorize_data(self):
-        self.pairs = from_numpy(self.pairs)
+        if self.subject_based_pred_flag:
+            self.seqs = from_numpy(self.seqs.values)
+            # self.idps_filt = from_numpy(self.idps_filt.values)
+            self.target = from_numpy(self.subj_labels.values)
+        else:
+            self.pairs = from_numpy(self.pairs)
+    
+    def reset_subject_idx_and_tensorize(self):
+        # sort data frames by id
+        self.seqs = self.seqs.sort_index()
+        self.idps_filt = self.idps_filt.sort_index()
+        # reset index
+        self.seqs = self.seqs.reset_index(drop=True)
+        self.idps_filt = self.idps_filt.reset_index(drop=True)
+        # tensorize
+        self.seqs = from_numpy(self.seqs.values)
+        # self.idps_filt = from_numpy(self.idps_filt.values)
+        self.target = from_numpy(self.subj_labels.values)
+
         
     def set_data_splits(self):
-        self.train_idx, self.test_idx, _, _ = train_test_split(
-             np.arange(len(self.pairs)), np.zeros(len(self.pairs)), test_size=self.test_size, random_state=self.rnd_st)
+        if self.subject_based_pred_flag: # added to return subject based pairs instead of snp-idp pairs
+            self.train_idx, self.test_idx, _, _ = train_test_split(
+             np.arange(len(self.seqs)), np.zeros(len(self.seqs)), test_size=self.test_size, random_state=self.rnd_st)
 
-        self.train_idx, self.val_idx, _, _  = train_test_split(
-            self.train_idx, np.zeros(len(self.train_idx)), test_size = self.val_size, random_state=self.rnd_st) 
+            self.train_idx, self.val_idx, _, _  = train_test_split(
+                self.train_idx, np.zeros(len(self.train_idx)), test_size = self.val_size, random_state=self.rnd_st)
+        else:
+            self.train_idx, self.test_idx, _, _ = train_test_split(
+                np.arange(len(self.pairs)), np.zeros(len(self.pairs)), test_size=self.test_size, random_state=self.rnd_st)
+
+            self.train_idx, self.val_idx, _, _  = train_test_split(
+                self.train_idx, np.zeros(len(self.train_idx)), test_size = self.val_size, random_state=self.rnd_st) 
     
     def get_data_splits(self):
         return self.train_idx, self.val_idx, self.test_idx
@@ -193,28 +230,40 @@ class dataset(Dataset):
         # Set paths and args variables
         self.path_seqs, self.path_idps, self.path_idp_map, self.path_pairs = paths['path_seqs'], paths['path_idps'], paths['path_idp_map'], paths['path_pairs']
         self.val_size, self.test_size, self.rnd_st, self.pairs_exist, self.fname_root_out, self.top_n_perc = args['val_size'], args['test_size'], args['rnd_st'], args['pairs_exist'], args['fname_root_out'], args['top_n_perc']
+        self.subject_based_pred_flag = args['subject_based_pred_flag'] # added to return subject based pairs instead of snp-idp pairs
+        self.path_subj_labels = paths['path_subj_labels']
 
         self.load_data()
         self.match_modalities()
         self.bucket_snps, self.bucket_idps, self.matching_diseases = self.create_buckets()
-        
-        if self.pairs_exist:
-            self.load_pairs()
-        else:
-            self.set_tabular_embeddings()# remains to be decided where to perform as this will require to first perfrom the data splits
-            self.pair_dictionary = self.create_pairs(self.bucket_snps, self.bucket_idps, self.matching_diseases)
-            print(f'Saving created pairs in {os.path.join(os.getcwd(),"data/pairs.pickle")}')
-            with open(os.path.join(os.getcwd(),'data/pairs.pickle'), "wb") as outfile:
-                pickle.dump(self.pair_dictionary, outfile)
 
-        # self.tensorize_data()
-        self.extend_pairs()
-        self.set_data_splits()
-        self.create_pairs_for_test()
+        if self.subject_based_pred_flag: # added to return subject based pairs instead of snp-idp pairs
+            self.load_subj_labels()
+            # self.reset_subject_idx_and_tensorize()
+            self.set_tabular_embeddings()
+            self.set_data_splits()
+            self.tensorize_data()
+        else:
+            if self.pairs_exist:
+                self.load_pairs()
+            else:
+                self.set_tabular_embeddings()# remains to be decided where to perform as this will require to first perfrom the data splits
+                self.pair_dictionary = self.create_pairs(self.bucket_snps, self.bucket_idps, self.matching_diseases)
+                print(f'Saving created pairs in {os.path.join(os.getcwd(),"data/pairs.pickle")}')
+                with open(os.path.join(os.getcwd(),'data/pairs.pickle'), "wb") as outfile:
+                    pickle.dump(self.pair_dictionary, outfile)
+
+            # self.tensorize_data()
+            self.extend_pairs()
+            self.set_data_splits()
+            self.create_pairs_for_test()
     
     def __len__(self):
         # TODO: Update based on data pair definition
         return len(self.pairs)
 
     def __getitem__(self, index):
-        return self.pairs[index,0], self.pairs[index,1], self.pairs[index,2], self.emb_idps[index]
+        if self.subject_based_pred_flag: # added to return subject based pairs instead of snp-idp pairs
+            return np.arange(self.seqs.shape[1]), self.seqs[index], np.arange(len(self.idps_filt.columns)), self.embedded_idps[index], self.target[index]
+        else:
+            return self.pairs[index,0], self.pairs[index,1], self.pairs[index,2], self.emb_idps[index], self.pairs[index,0] # last element is added to match the return format of the subject based pairs, can be regarded as none

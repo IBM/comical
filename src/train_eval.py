@@ -86,6 +86,8 @@ def train_eval(paths, args, config = None):
             'results_path':os.path.join(os.getcwd(),'results',args['fname_root_out']),
             'resume_from_batch':args['resume_from_batch'],
             'ckpt_name':args['ckpt_name'],
+            'subject_based_pred_flag':args['subject_based_pred_flag'],
+            'out_flag':args['out_flag'],
         }
     # Train model
     train_losses, val_losses = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])

@@ -23,7 +23,7 @@ from src.test import test_model
 from src.utils  import idp_tokenization
 
 from torch.utils.tensorboard import SummaryWriter
-from src.models import comical, comical_new_emb
+from src.models import comical, comical_new_emb, comical_new_emb_clasf
 
 
 
@@ -38,14 +38,27 @@ def train(config, data=None, checkpoint_dir=None):
     val_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['val_index']), batch_size=int(config["batch_size"]), shuffle=True)
     
     # Model and Hyperparams
-    model = comical_new_emb(config)
+    model = comical_new_emb(config) if config['out_flag']=='seq_idp' else comical_new_emb_clasf(config)
+    
+    # Freeze encoders for pre-trained model - Added 2024.01.10 - Yet to be debugged
+    if config['out_flag'] == 'clf' or config['out_flag'] == 'reg':
+        for param in model.parameters():
+            param.requires_grad = False
+        # ct = 0
+        # for child in model.children():
+        #     ct += 1
+        #     if ct > 11:
+        #         for param in child.parameters():
+        #             param.requires_grad = True
+        for param in model.proj_down.parameters():
+            param.requires_grad = True
     
     # GPU settings
     device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda:0"
-        if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model)
+    # if torch.cuda.is_available():
+    #     device = "cuda:0"
+    #     if torch.cuda.device_count() > 1:
+    #         model = nn.DataParallel(model)
             # model = DDP(model, device_ids=[rank]) # TODO: implement DDP for better paralelization (if needed)
     model = model.to(device)
     
@@ -68,9 +81,15 @@ def train(config, data=None, checkpoint_dir=None):
 
     # Optimizer using clip settings (could be updated / added to hyperparmeter configuration)
     optimizer = optim.Adam(model.parameters(), lr=5e-5,betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
-
-    loss_seq = nn.CrossEntropyLoss()
-    loss_idp = nn.CrossEntropyLoss()
+    
+    # Added classification and regression losses - Added 2024.01.10 - Yet to be debugged
+    if config['out_flag'] == 'clf':
+        loss_clf = nn.CrossEntropyLoss()
+    elif config['out_flag'] == 'reg':
+        loss_reg = nn.MSELoss()
+    else:
+        loss_seq = nn.CrossEntropyLoss()
+        loss_idp = nn.CrossEntropyLoss()
 
     # if config['resume_from_batch']:
     #     model, optimizer, start_batch = load_ckp(os.path.join(checkpoint_dir,config['last_checkpoint_path']), model, optimizer)
@@ -87,26 +106,34 @@ def train(config, data=None, checkpoint_dir=None):
         model.train()
         sum_loss = 0.      
 
-        for batch_idx, (snp_id,seq,idp_id,idp) in enumerate(tqdm(train_loader,desc='Training batch loop')):
+        for batch_idx, (snp_id,seq,idp_id,idp,target) in enumerate(tqdm(train_loader,desc='Training batch loop')):
             # if batch_idx < start_batch:
             #     continue
             optimizer.zero_grad()
             seq,snp_id,idp,idp_id = seq.to(device).long(),snp_id.to(device).long(),idp.to(device).long(),idp_id.to(device).long()
+            target = None if config['out_flag'] == 'seq_idp' else target.to(device).float()
             # Different outputs depening if returning embeddings
             if config['save_embeddings']:
                 logits_seq, logits_idp, gen_emb, idp_emb  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
                 embs['gen_embs'].extend(gen_emb)
                 embs['idp_embs'].extend(idp_emb)
             else:
-                logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
-
-            ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
-            total_loss = (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
+                if config['out_flag'] == 'seq_idp':
+                    logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                else:
+                    pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                
+            if config['out_flag'] == 'seq_idp':
+                ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
+                total_loss = (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
+            else:
+                total_loss = loss_clf(pred,target) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+            
             sum_loss += total_loss.item()
             total_loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm = 2.0, norm_type=2) # gradient clipping to avoid vanishing/exploding gradients
             optimizer.step()
-            save_ckp_batch(epoch,batch_idx,model,optimizer,checkpoint_dir)
+            # save_ckp_batch(epoch,batch_idx,model,optimizer,checkpoint_dir)
 
         # loss per epoch
         sum_loss /= (batch_idx)
@@ -122,18 +149,24 @@ def train(config, data=None, checkpoint_dir=None):
         # Bring model to evaluation mode
         model.eval()
         with torch.no_grad():
-            for batch_idx, (snp_id,seq,idp_id,idp) in enumerate(tqdm(val_loader,desc='Validation batch loop'), 0):
+            for batch_idx, (snp_id,seq,idp_id,idp,target) in enumerate(tqdm(val_loader,desc='Validation batch loop'), 0):
                     
                 seq,snp_id,idp,idp_id = seq.to(device).long(),snp_id.to(device).long(),idp.to(device).long(),idp_id.to(device).long()
+                target = None if config['out_flag'] == 'seq_idp' else target.to(device).float()
                 if config['save_embeddings']:
                     logits_seq, logits_idp, gen_emb, idp_emb  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
                     embs['gen_embs'].extend(gen_emb)
                     embs['idp_embs'].extend(idp_emb)
                 else:
-                    logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
-
-                ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
-                total_val_loss = (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
+                    if config['out_flag'] == 'seq_idp':
+                        logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                    else:
+                        pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                if config['out_flag'] == 'seq_idp':
+                    ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
+                    total_val_loss = (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
+                else:
+                    total_val_loss = loss_clf(pred,target) if config['out_flag'] == 'clf' else loss_reg(pred,target)
                 val_loss += total_val_loss
                 val_steps += 1
         
