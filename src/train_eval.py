@@ -88,6 +88,7 @@ def train_eval(paths, args, config = None):
             'ckpt_name':args['ckpt_name'],
             'subject_based_pred_flag':args['subject_based_pred_flag'],
             'out_flag':args['out_flag'],
+            'disease':args['disease'],
         }
     # Train model
     train_losses, val_losses = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
@@ -97,9 +98,9 @@ def train_eval(paths, args, config = None):
 
 
     # Evaluate on all data paritions - using best checkpointed model
-    loss_train, acc_train = test_model(config, data, train_idx, best_checkpoint_path)
-    loss_val, acc_val = test_model(config, data, val_idx, best_checkpoint_path)
-    loss_test, acc_test = test_model(config, data, test_idx, best_checkpoint_path)
+    loss_train, acc_train, _ = test_model(config, data, train_idx, best_checkpoint_path)
+    loss_val, acc_val, _ = test_model(config, data, val_idx, best_checkpoint_path)
+    loss_test, acc_test, extra_test = test_model(config, data, test_idx, best_checkpoint_path)
 
     # Return dictionary with results, data info
     results_ret = {
@@ -127,6 +128,10 @@ def train_eval(paths, args, config = None):
             'layer_norm_eps':config["layer_norm_eps"],
             'activation':config["activation"],
             'checkpoint_path':best_checkpoint_path
+        },
+        'data_auc_plot':{
+            'test_preds': [str(i) for i in extra_test['preds']],
+            'test_labels': [str(i) for i in extra_test['target']],
         }
     }
     return results_ret

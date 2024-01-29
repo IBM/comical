@@ -10,6 +10,8 @@ def msg(name=None):
          >> python -m debugpy --listen 0.0.0.0:1326 --wait-for-client wrapper.py -tr_coco 0 -e 1 -bz 7500 -fo top_01_perc_7500bz_1e - top_n_perc 0.1
         Example run from cli on CCC once in comptue node with environment activated
         python wrapper.py -fo comical_new_top1snps_pairs -bz 7500 -tr_coco 0 -e 4
+        Example run for clasf prediction using frozen encoders
+        >> python wrapper.py -fo comical_PD -gpu 7 -disease PD -out_flag clf -sbp 1 -lr 0.001
         '''
 
 def parse_arguments():
@@ -20,6 +22,7 @@ def parse_arguments():
     parser.add_argument("-pm", "--path_id_map", dest='path_idp_map', action='store', help="Enter path for IDPs name mapping file", metavar="PM", default=os.path.join(os.getcwd(),'data','T1mri.csv'))
     parser.add_argument("-pp", "--path_pairs", dest='path_pairs', action='store', help="Enter path for pairing matches file", metavar="PP", default=os.path.join(os.getcwd(),'data','pairs.csv'))
     parser.add_argument("-pt", "--path_subj_labels", dest='path_subj_labels', action='store', help="Enter path for subject labels file", metavar="PT", default=os.path.join(os.getcwd(),'data','neuroDx.csv'))
+    parser.add_argument("-cov", "--path_covariates", dest='path_covariates', action='store', help="Enter path for covariates file", metavar="COV", default=os.path.join(os.getcwd(),'data','neuroDx_geneticPCs.csv'))
 
     # Results path
     parser.add_argument("-pr", "--path_res", dest='path_res', action='store', help="Output folder", metavar="PR", default=os.path.join(os.getcwd(),'results')) 
@@ -35,9 +38,9 @@ def parse_arguments():
     parser.add_argument("-gpu", "--gpu_nums", dest='gpu_nums', action='store', help="Enter the gpus to use", metavar="GPU", default='2,3,4,5,6,7')
     parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='0')
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
-    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='256')
+    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='1024')
     parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.00001')
-    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='15')
+    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10')
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
     parser.add_argument("-dm", "--d_model", dest='d_model', action='store', help="Enter the model dimensions", metavar="DIMS", default='64')
     parser.add_argument("-nh", "--nhead", dest='nhead', action='store', help="Enter the number of heads on MHA", metavar="MHA", default='4')
@@ -51,8 +54,9 @@ def parse_arguments():
     parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use. Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='0.5')
     parser.add_argument("-resume", "--resume_from_batch", dest='resume_from_batch', action='store', help='Enter 1 if want to resume training from last batch checkpoint. Note: default = 0', metavar='RESUME', default='0')
     parser.add_argument("-ckpt_name", "--ckpt_name", dest='ckpt_name', action='store', help='Enter checkpoint name from batch to resume training.', metavar='ckpt_name', default='None')
-    parser.add_argument("-sbp", "--subject_based_pred_flag", dest='subject_based_pred_flag', action='store', help='Enter 1 if want to train and evaluate with subject based prediction (frozen encoders).', metavar='SBP', default='0')
-    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or seq_idp for sequence and idp prediction.', metavar='OUTFLAG', default='seq_idp')
+    parser.add_argument("-sbp", "--subject_based_pred_flag", dest='subject_based_pred_flag', action='store', help='Enter 1 if want to train and evaluate with subject based prediction (frozen encoders).', metavar='SBP', default='1')
+    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or seq_idp for sequence and idp prediction.', metavar='OUTFLAG', default='clf')
+    parser.add_argument("-disease", "--disease", dest='disease', action='store', help='Enter disease to train on.', metavar='DISEASE', default='Stroke')
     args = parser.parse_args()
 
     return args 
@@ -86,6 +90,7 @@ if __name__ == '__main__':
     path_idp_map = args.path_idp_map
     path_pair = args.path_pairs
     path_subj_labels = args.path_subj_labels
+    path_covariates = args.path_covariates
 
     path_res = args.path_res
     fname_root_out = args.fname_out_root
@@ -112,6 +117,7 @@ if __name__ == '__main__':
         'tensorboard_log': os.path.join(os.getcwd(),'results',fname_root_out,'tensorboard_logs'),
         'wd' : os.getcwd(),
         'path_subj_labels' : path_subj_labels,
+        'path_covariates' : path_covariates,
     }
 
     args = {
@@ -140,6 +146,7 @@ if __name__ == '__main__':
         'ckpt_name':args.ckpt_name,
         'subject_based_pred_flag':bool(int(args.subject_based_pred_flag)),
         'out_flag':args.out_flag,
+        'disease':args.disease,
     }
 
     # Run training, hyperparam search and testing 

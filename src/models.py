@@ -4,6 +4,36 @@ import torch.nn.functional as F
 import numpy as np
 
 
+# MLP only as baseline
+class mlp_only(nn.Module):
+    def __init__(self, config):
+        super(mlp_only, self).__init__()
+        self.units = config['units']
+        self.num_layers = config['num_layers']
+        self.d_model = config['d_model']
+        self.nhead = config['nhead']
+        self.dim_feedforward = config['dim_feedforward']
+        self.dropout = config['dropout']
+        self.layer_norm_eps = config['layer_norm_eps']
+        self.activation = config['activation']
+        self.dict_size_gen = 51
+
+        # MLP
+        self.to_model_dims = nn.Linear(64, 1)
+        self.h1 = nn.Linear(5603+139+42,self.d_model)
+        self.proj_down = nn.Linear(self.d_model,2)
+
+    def mlp(self,x):
+            self.dropout = nn.Dropout(0.2)
+            x = self.proj_down(self.dropout(F.relu(self.h1(x))))
+            return x
+
+    def forward(self, gen,snp_id,idp,idp_id,save_emb,covariates):
+        # adapt input to mlp
+        idp_features = torch.squeeze(self.to_model_dims(idp.float()),dim=-1)
+        res = self.mlp(torch.concat((gen,idp_features,covariates),dim=-1))
+        return res
+
 # Added on 2024.01.10 - Use pretrained encoders to perform downstream tasks such as classification and risk score regression - Yet to be debugged
 class comical_new_emb_clasf(nn.Module): 
     def __init__(self, config):
@@ -51,7 +81,8 @@ class comical_new_emb_clasf(nn.Module):
         self.idp_mlp = nn.Linear(self.d_model, self.dict_size_num_ipds)
 
         # MLP
-        self.proj_down = nn.Linear(self.d_model*2,1)
+        self.h1 = nn.Linear(self.d_model*2+42,self.d_model)
+        self.proj_down = nn.Linear(self.d_model,2)
     
     # Genetic (modality 1 encoder)
     def encode_gen(self, text, snp_id, save_emb):
@@ -99,11 +130,12 @@ class comical_new_emb_clasf(nn.Module):
             return x
         
     def mlp(self,x):
-            x = F.relu(self.proj_down(x))
+            self.dropout = nn.Dropout(0.2)
+            x = self.proj_down(self.dropout(F.relu(self.h1(x))))
             return x
 
 
-    def forward(self, gen,snp_id,idp,idp_id,save_emb):
+    def forward(self, gen,snp_id,idp,idp_id,save_emb,covariates):
         # Prepare embeddings
         if save_emb:
             gen_features,gen_emb = self.encode_gen(gen,snp_id,save_emb)
@@ -122,8 +154,9 @@ class comical_new_emb_clasf(nn.Module):
         # logits_per_idp = logits_per_gen.t()
 
         # shape = [batch_size, 1]
-        res = self.mlp(torch.concat((gen_features,idp_features),dim=-1))
-        return torch.squeeze(res) # squeeze to remove last dimension (i.e. shape = [batch_size,]) solve problems with MSE loss function
+        res = self.mlp(torch.concat((gen_features,idp_features,covariates),dim=-1))
+        # return torch.squeeze(res) # squeeze to remove last dimension (i.e. shape = [batch_size,]) solve problems with MSE loss function
+        return res
     
 ################################# Implementation following CLIP #################################
 class comical_new_emb(nn.Module): 

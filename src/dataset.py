@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset
-from torch import Tensor, from_numpy, stack, flatten
+from torch import Tensor, from_numpy, stack, flatten,concat
 from sklearn.model_selection import train_test_split
 from transformers import AutoTokenizer
 from tqdm import tqdm
@@ -37,12 +37,27 @@ class dataset(Dataset):
         self.pairs.IDP = self.pairs.IDP.map(self.idp_map.Field_ID.to_dict())
 
     def load_subj_labels(self):
+        # For regression of scores
         self.subj_labels = pd.read_csv(self.path_subj_labels)
         self.subj_labels = self.subj_labels.set_index('eid')
         self.subj_labels = self.subj_labels[~self.subj_labels.index.duplicated(keep='first')]
-        self.subj_labels = self.subj_labels.loc[:,'Age']
-        # self.subj_labels = self.subj_labels.loc[self.matching_ids].sort_index()
-        # self.subj_labels = self.subj_labels.reset_index(drop=True)
+        # self.subj_labels = self.subj_labels.loc[:,'Age']
+        # For classification of disease
+        if self.disease != 'meta':
+            self.subj_labels = self.subj_labels.loc[:,self.disease]
+        # Do meta disease classification - i.e. if any of the diseases are present
+        if self.disease == 'meta':
+            self.subj_labels = self.subj_labels.loc[:,['AD','BPD','Depression','MS','Stroke','ADHD','ASD','MD','PD','SZ']]
+            self.subj_labels = self.subj_labels.any(axis=1).astype('int')# collapse to one column
+
+    def load_covariates(self):
+        self.pcs = pd.read_csv(self.path_covariates)
+        self.covariates = pd.read_csv(self.path_subj_labels)
+        self.pcs = self.pcs.set_index('eid')
+        self.covariates = self.covariates.set_index('eid')
+        self.pcs = self.pcs[~self.pcs.index.duplicated(keep='first')]
+        self.covariates = self.covariates[~self.covariates.index.duplicated(keep='first')]
+        self.covariates = self.covariates.loc[:,['Age','Sex']]
     
     def get_iid_tensor_map(self):
         return self.iid_tensorID_map
@@ -55,9 +70,10 @@ class dataset(Dataset):
         self.load_idps()
         self.load_map_and_pairs()
         if self.subject_based_pred_flag: self.load_subj_labels()
+        if self.subject_based_pred_flag: self.load_covariates()
 
     def match_modalities(self):
-        self.matching_ids = reduce(np.intersect1d, (self.seqs_idx, self.idps_idx, self.subj_labels.index)) if self.subject_based_pred_flag else np.intersect1d(self.seqs_idx, self.idps_idx) 
+        self.matching_ids = reduce(np.intersect1d, (self.seqs_idx, self.idps_idx, self.subj_labels.index,self.covariates.index,self.pcs.index)) if self.subject_based_pred_flag else np.intersect1d(self.seqs_idx, self.idps_idx) 
         self.seqs = self.seqs.loc[self.matching_ids].sort_index()
         self.idps_filt = self.idps_filt.loc[self.matching_ids].sort_index()
         self.iid_tensorID_map = dict(zip(self.seqs.index,np.arange(len(self.seqs.index))))
@@ -66,6 +82,10 @@ class dataset(Dataset):
         if self.subject_based_pred_flag:
             self.subj_labels = self.subj_labels.loc[self.matching_ids].sort_index()
             self.subj_labels = self.subj_labels.reset_index(drop=True)
+            self.covariates = self.covariates.loc[self.matching_ids].sort_index()
+            self.covariates = self.covariates.reset_index(drop=True)
+            self.pcs = self.pcs.loc[self.matching_ids].sort_index()
+            self.pcs = self.pcs.reset_index(drop=True)
 
     def set_tabular_embeddings(self):
         self.embedded_idps = idp_tokenization('cpu',64,self.rnd_st,self.idps_filt.index,{'train':self.idps_filt.values.astype('float')})
@@ -193,6 +213,10 @@ class dataset(Dataset):
             self.seqs = from_numpy(self.seqs.values)
             # self.idps_filt = from_numpy(self.idps_filt.values)
             self.target = from_numpy(self.subj_labels.values)
+            self.covariates = from_numpy(self.covariates.values)
+            self.pcs = from_numpy(self.pcs.values)
+            # concateante covariates and pcs
+            self.covariates = concat([self.covariates,self.pcs],dim=1)
         else:
             self.pairs = from_numpy(self.pairs)
     
@@ -225,6 +249,9 @@ class dataset(Dataset):
     
     def get_data_splits(self):
         return self.train_idx, self.val_idx, self.test_idx
+    
+    def get_labels(self):
+        return self.subj_labels
 
     def __init__(self,paths, args):
         # Set paths and args variables
@@ -232,13 +259,16 @@ class dataset(Dataset):
         self.val_size, self.test_size, self.rnd_st, self.pairs_exist, self.fname_root_out, self.top_n_perc = args['val_size'], args['test_size'], args['rnd_st'], args['pairs_exist'], args['fname_root_out'], args['top_n_perc']
         self.subject_based_pred_flag = args['subject_based_pred_flag'] # added to return subject based pairs instead of snp-idp pairs
         self.path_subj_labels = paths['path_subj_labels']
+        self.path_covariates = paths['path_covariates']
+        self.disease = args['disease']
 
         self.load_data()
         self.match_modalities()
         self.bucket_snps, self.bucket_idps, self.matching_diseases = self.create_buckets()
 
         if self.subject_based_pred_flag: # added to return subject based pairs instead of snp-idp pairs
-            self.load_subj_labels()
+            # self.load_subj_labels()
+            # self.load_covariates()
             # self.reset_subject_idx_and_tensorize()
             self.set_tabular_embeddings()
             self.set_data_splits()
@@ -264,6 +294,6 @@ class dataset(Dataset):
 
     def __getitem__(self, index):
         if self.subject_based_pred_flag: # added to return subject based pairs instead of snp-idp pairs
-            return np.arange(self.seqs.shape[1]), self.seqs[index], np.arange(len(self.idps_filt.columns)), self.embedded_idps[index], self.target[index]
+            return np.arange(self.seqs.shape[1]), self.seqs[index], np.arange(len(self.idps_filt.columns)), self.embedded_idps[index], self.target[index], self.covariates[index]
         else:
-            return self.pairs[index,0], self.pairs[index,1], self.pairs[index,2], self.emb_idps[index], self.pairs[index,0] # last element is added to match the return format of the subject based pairs, can be regarded as none
+            return self.pairs[index,0], self.pairs[index,1], self.pairs[index,2], self.emb_idps[index], self.pairs[index,0], self.pairs[index,0] # last 2 elements are added to match the return format of the subject based pairs, can be regarded as none

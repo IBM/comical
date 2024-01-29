@@ -3,9 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 # from utils import compute_auc
-from src.models import comical, comical_new_emb, comical_new_emb_clasf
+from src.models import comical, comical_new_emb, comical_new_emb_clasf, mlp_only
 import numpy as np
 from tqdm import tqdm
+from sklearn.metrics import roc_auc_score
 
 
 def test_model(config, data=None, subset_index=None, best_checkpoint_name=None):    
@@ -19,6 +20,7 @@ def test_model(config, data=None, subset_index=None, best_checkpoint_name=None):
 
     # Define model   
     model = comical_new_emb(config) if config['out_flag']=='seq_idp' else comical_new_emb_clasf(config)
+    model = mlp_only(config) if config['out_flag']=='mlp' else model
 
     # GPU settings
     device = "cpu"
@@ -45,8 +47,9 @@ def test_model(config, data=None, subset_index=None, best_checkpoint_name=None):
     acc = 0.
     seq_l = []
     idp_l = []
+    data_auc_plot = {'preds':[],'target':[]}
     # Added classification and regression losses - Added 2024.01.10 - Yet to be debugged
-    if config['out_flag'] == 'clf':
+    if config['out_flag'] == 'clf' or config['out_flag'] == 'mlp':
         loss_clf = nn.CrossEntropyLoss()
     elif config['out_flag'] == 'reg':
         loss_reg = nn.MSELoss()
@@ -55,9 +58,10 @@ def test_model(config, data=None, subset_index=None, best_checkpoint_name=None):
         loss_idp = nn.CrossEntropyLoss()
 
     with torch.no_grad():
-        for batch_idx, (snp_id,seq,idp_id,idp,target) in enumerate(tqdm(test_loader,desc='Testing batch loop')):
+        for batch_idx, (snp_id,seq,idp_id,idp,target,covariates) in enumerate(tqdm(test_loader,desc='Testing batch loop')):
             seq,snp_id,idp,idp_id = seq.to(device).long(),snp_id.to(device).long(),idp.to(device).long(),idp_id.to(device).long()
             target = None if config['out_flag'] == 'seq_idp' else target.to(device).float()
+            covariates = None if config['out_flag'] == 'seq_idp' else covariates.to(device).float()
 
             if config['save_embeddings']:
                 logits_seq, logits_idp, _,_  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
@@ -65,14 +69,15 @@ def test_model(config, data=None, subset_index=None, best_checkpoint_name=None):
                 if config['out_flag'] == 'seq_idp':
                     logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
                 else:
-                    pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                    pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'],covariates)
             
             if config['out_flag'] == 'seq_idp':
                 # Set ground truth following CLIP implementation - output should match batch indeces
                 ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
                 total_loss += (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
             else:
-                total_loss = loss_clf(pred,target) if config['out_flag'] == 'clf' else loss_reg(pred,target)        
+                # total_loss += loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                total_loss += loss_clf(pred,target.long()) 
             
             # Inputs and Outputs per batch for returning
             seq_l.extend(seq.detach().cpu().numpy())
@@ -85,11 +90,14 @@ def test_model(config, data=None, subset_index=None, best_checkpoint_name=None):
                 
                 # Calculte accuracy per batch
                 acc += calculate_acc(seq.cpu().numpy(),snp_id.cpu().numpy(),idp.cpu().numpy(),idp_id.cpu().numpy(), probs_seq, probs_idp,dd_idp, dd, idp_id_map, snp_id_map)
-            elif config['out_flag'] == 'clf':
+            elif config['out_flag'] == 'clf' or config['out_flag'] == 'mlp':
                 # Compute softmax probs to use for accuracy calculation
                 probs = np.argmax(pred.softmax(dim=-1).cpu().numpy(), axis = 1)
                 # Calculte accuracy per batch
-                acc += np.sum(probs == target.cpu().numpy()) / len(probs)
+                # acc += np.sum(probs == target.cpu().numpy()) / len(probs)
+                data_auc_plot['preds'].extend(pred.softmax(dim=-1).cpu().numpy()[:,1])
+                data_auc_plot['target'].extend(target.cpu().numpy())
+                acc += compute_auc(pred.softmax(dim=-1).cpu().numpy()[:,1],target.cpu().numpy()) #substitue AUC for accuracy
             else:
                 # Calculte MSE per batch
                 acc += F.mse_loss(pred,target).item()
@@ -98,7 +106,7 @@ def test_model(config, data=None, subset_index=None, best_checkpoint_name=None):
     total_loss /= (batch_idx+1)
     acc /= (batch_idx+1)
 
-    return total_loss.item(), acc
+    return total_loss.item(), acc, data_auc_plot
 
 def calculate_acc(seq,snp_id,idp,idp_id, probs_seq, probs_idp, dd_idp, dd, idp_id_map, snp_id_map):
     correct = 0.0
@@ -112,3 +120,24 @@ def calculate_acc(seq,snp_id,idp,idp_id, probs_seq, probs_idp, dd_idp, dd, idp_i
 
     acc = correct / len(probs_seq) /2 
     return acc
+
+def compute_auc(output,target):
+    # FIXME: currently if batch has only one class return AUC of 0.5
+    if len(np.unique(target)) == 1:
+        return 0.5
+    
+    if len(np.unique(target)) == 2:
+        micro_roc_auc_ovo = roc_auc_score(
+            target,
+            output
+        )
+    else:
+        micro_roc_auc_ovo = roc_auc_score(
+            target,
+            output,
+            multi_class="ovo",
+            average="macro",
+            labels=np.asarray([0,1,2])
+        )
+
+    return micro_roc_auc_ovo

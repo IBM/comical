@@ -23,7 +23,8 @@ from src.test import test_model
 from src.utils  import idp_tokenization
 
 from torch.utils.tensorboard import SummaryWriter
-from src.models import comical, comical_new_emb, comical_new_emb_clasf
+from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
+from sklearn.utils.class_weight import compute_class_weight
 
 
 
@@ -39,6 +40,7 @@ def train(config, data=None, checkpoint_dir=None):
     
     # Model and Hyperparams
     model = comical_new_emb(config) if config['out_flag']=='seq_idp' else comical_new_emb_clasf(config)
+    model = mlp_only(config) if config['out_flag']=='mlp' else model
     
     # Freeze encoders for pre-trained model - Added 2024.01.10 - Yet to be debugged
     if config['out_flag'] == 'clf' or config['out_flag'] == 'reg':
@@ -50,15 +52,17 @@ def train(config, data=None, checkpoint_dir=None):
         #     if ct > 11:
         #         for param in child.parameters():
         #             param.requires_grad = True
+        for param in model.h1.parameters():
+            param.requires_grad = True
         for param in model.proj_down.parameters():
             param.requires_grad = True
     
     # GPU settings
     device = "cpu"
-    # if torch.cuda.is_available():
-    #     device = "cuda:0"
-    #     if torch.cuda.device_count() > 1:
-    #         model = nn.DataParallel(model)
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
             # model = DDP(model, device_ids=[rank]) # TODO: implement DDP for better paralelization (if needed)
     model = model.to(device)
     
@@ -80,11 +84,18 @@ def train(config, data=None, checkpoint_dir=None):
     #     return model, optimizer, int(checkpoint['batch'])
 
     # Optimizer using clip settings (could be updated / added to hyperparmeter configuration)
-    optimizer = optim.Adam(model.parameters(), lr=5e-5,betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
+    # optimizer = optim.Adam(model.parameters(), lr=5e-5,betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
+    optimizer = optim.Adam(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
+
     
     # Added classification and regression losses - Added 2024.01.10 - Yet to be debugged
-    if config['out_flag'] == 'clf':
-        loss_clf = nn.CrossEntropyLoss()
+    if config['out_flag'] == 'clf' or config['out_flag'] == 'mlp':
+        # Add class weights for imbalanced data on classification task
+        class_weights=torch.tensor(compute_class_weight('balanced', classes=np.unique(data.get_labels()), y=data.get_labels()),dtype=torch.float).to(device)
+        loss_clf = nn.CrossEntropyLoss(weight=class_weights)
+        # class_weights
+        # class_weights = list(map(class_weights.get, list_to_be_mapped))
+        # loss_clf = nn.CrossEntropyLoss()
     elif config['out_flag'] == 'reg':
         loss_reg = nn.MSELoss()
     else:
@@ -106,12 +117,13 @@ def train(config, data=None, checkpoint_dir=None):
         model.train()
         sum_loss = 0.      
 
-        for batch_idx, (snp_id,seq,idp_id,idp,target) in enumerate(tqdm(train_loader,desc='Training batch loop')):
+        for batch_idx, (snp_id,seq,idp_id,idp,target,covariates) in enumerate(tqdm(train_loader,desc='Training batch loop')):
             # if batch_idx < start_batch:
             #     continue
             optimizer.zero_grad()
             seq,snp_id,idp,idp_id = seq.to(device).long(),snp_id.to(device).long(),idp.to(device).long(),idp_id.to(device).long()
             target = None if config['out_flag'] == 'seq_idp' else target.to(device).float()
+            covariates = None if config['out_flag'] == 'seq_idp' else covariates.to(device).float()
             # Different outputs depening if returning embeddings
             if config['save_embeddings']:
                 logits_seq, logits_idp, gen_emb, idp_emb  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
@@ -121,13 +133,14 @@ def train(config, data=None, checkpoint_dir=None):
                 if config['out_flag'] == 'seq_idp':
                     logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
                 else:
-                    pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                    pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'],covariates)
                 
             if config['out_flag'] == 'seq_idp':
                 ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
                 total_loss = (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
             else:
-                total_loss = loss_clf(pred,target) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                # total_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                total_loss = loss_clf(pred,target.long())
             
             sum_loss += total_loss.item()
             total_loss.backward()
@@ -149,10 +162,11 @@ def train(config, data=None, checkpoint_dir=None):
         # Bring model to evaluation mode
         model.eval()
         with torch.no_grad():
-            for batch_idx, (snp_id,seq,idp_id,idp,target) in enumerate(tqdm(val_loader,desc='Validation batch loop'), 0):
+            for batch_idx, (snp_id,seq,idp_id,idp,target,covariates) in enumerate(tqdm(val_loader,desc='Validation batch loop'), 0):
                     
                 seq,snp_id,idp,idp_id = seq.to(device).long(),snp_id.to(device).long(),idp.to(device).long(),idp_id.to(device).long()
                 target = None if config['out_flag'] == 'seq_idp' else target.to(device).float()
+                covariates = None if config['out_flag'] == 'seq_idp' else covariates.to(device).float()
                 if config['save_embeddings']:
                     logits_seq, logits_idp, gen_emb, idp_emb  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
                     embs['gen_embs'].extend(gen_emb)
@@ -161,12 +175,13 @@ def train(config, data=None, checkpoint_dir=None):
                     if config['out_flag'] == 'seq_idp':
                         logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
                     else:
-                        pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                        pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'],covariates)
                 if config['out_flag'] == 'seq_idp':
                     ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
                     total_val_loss = (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
                 else:
-                    total_val_loss = loss_clf(pred,target) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                    # total_val_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                    total_val_loss = loss_clf(pred,target.long())
                 val_loss += total_val_loss
                 val_steps += 1
         
@@ -188,7 +203,8 @@ def train(config, data=None, checkpoint_dir=None):
                     },  os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}'))
                 val_losses.append(total_val_loss.item()/val_steps)
                 writer.add_scalar("Loss/val", total_val_loss.item()/val_steps, epoch)
-
+            print(f'Training loss= {sum_loss} at epoch {epoch}')
+            print(f'Vaidation loss= {total_val_loss.item()/val_steps} at epoch {epoch}')
     print("Finished Training")
     if tune == False:
         # Clear tensorboard variables
