@@ -21,6 +21,11 @@ def train_eval(paths, args, config = None):
         data = dataset(paths, args)
         # Get data splits and confirm there is no overlap between them.
         train_idx, val_idx, test_idx = data.get_data_splits()
+
+        print('# of training pairs:', len(train_idx))
+        print('# of validation pairs:', len(val_idx))
+        print('# of testing pairs:', len(test_idx))
+
         assert np.intersect1d(train_idx, val_idx).size == 0 and np.intersect1d(train_idx, test_idx).size == 0 and np.intersect1d(val_idx, test_idx).size == 0
     else:
         from src.train_coco import train
@@ -98,18 +103,18 @@ def train_eval(paths, args, config = None):
 
 
     # Evaluate on all data paritions - using best checkpointed model
-    loss_train, acc_train, _ = test_model(config, data, train_idx, best_checkpoint_path)
-    loss_val, acc_val, _ = test_model(config, data, val_idx, best_checkpoint_path)
+    # loss_train, acc_train, _ = test_model(config, data, train_idx, best_checkpoint_path)
+    # loss_val, acc_val, _ = test_model(config, data, val_idx, best_checkpoint_path)
     loss_test, acc_test, extra_test = test_model(config, data, test_idx, best_checkpoint_path)
 
     # Return dictionary with results, data info
     results_ret = {
         'metrics':{
-            'loss_train':loss_train,
-            'loss_val':loss_val,
+            # 'loss_train':loss_train,
+            # 'loss_val':loss_val,
             'loss_test':loss_test,
-            'acc_train':acc_train,
-            'acc_val':acc_val,
+            # 'acc_train':acc_train,
+            # 'acc_val':acc_val,
             'acc_test':acc_test,
         },
         'data':{
