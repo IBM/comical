@@ -260,7 +260,7 @@ class dataset(Dataset):
         self.subject_based_pred_flag = args['subject_based_pred_flag'] # added to return subject based pairs instead of snp-idp pairs
         self.path_subj_labels = paths['path_subj_labels']
         self.path_covariates = paths['path_covariates']
-        self.disease = args['disease']
+        self.disease = args['target']
 
         self.load_data()
         self.match_modalities()

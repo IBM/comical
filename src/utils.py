@@ -1,12 +1,56 @@
-# Code adapted from On Embeddings for Numerical Features in Tabular Deep Learning
-# https://github.com/Yura52/tabular-dl-num-embeddings/blob/main/bin/train4.py - commit e1401da
-# subsample and and tree options not implemented
-
 import torch
 from tqdm import trange
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt 
+from sklearn.metrics import roc_curve, auc, precision_recall_curve
 
+### Results Utils ###
+def plot_training_curves(train_losses, val_losses, path):
+    # Plot training curves
+    plt.figure(figsize=(10, 10))
+    plt.plot(train_losses, label='Train')
+    plt.plot(val_losses, label='Validation')
+    plt.ylabel('Loss')
+    plt.xlabel('Epochs')
+    plt.legend()
+    plt.savefig(path)
+    plt.close()
+
+# Plot AUC-ROC curve
+def plot_roc_curve(test_preds, test_labels, path):
+    plt.figure(figsize=(10, 10))
+    for i in range(len(test_preds)):
+        fpr, tpr, _ = roc_curve(test_labels[i], test_preds[i])
+        roc_auc = auc(fpr, tpr)
+        plt.plot(fpr, tpr, label=f'ROC curve {i} (area = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Test Set ROC')
+    plt.legend(loc="lower right")
+    plt.savefig(path)
+    plt.close()
+
+# plot precision-recall curve
+def plot_precision_recall_curve(test_preds, test_labels, path):
+    plt.figure(figsize=(10, 10))
+    for i in range(len(test_preds)):
+        precision, recall, _ = precision_recall_curve(test_labels[i], test_preds[i])
+        plt.plot(recall, precision, label=f'PR curve {i}')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Test Set Precision-Recall')
+    plt.legend(loc="lower right")
+    plt.savefig(path)
+    plt.close()
+
+### Tokenization Utils ###
+# Code adapted from On Embeddings for Numerical Features in Tabular Deep Learning
+# https://github.com/Yura52/tabular-dl-num-embeddings/blob/main/bin/train4.py - commit e1401da
+# subsample and and tree options not implemented
 def idp_tokenization(device,count,seed,idx,X_num):
     subsample = None
     tree = None
