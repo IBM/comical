@@ -19,16 +19,15 @@ master_pair_freq_dict = {}
 
 def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=None):    
     # Call functions from dataset to get pair buckets for evaluation of model (accuracy calculation)
-    if config['out_flag'] == 'seq_idp':
+    if config['out_flag'] == 'pairs':
         dd_idp, dd = data.get_pairs_for_test()
         idp_id_map, snp_id_map = data.get_token_maps()
 
     # Define test loader
-    test_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,subset_index), batch_size=int(config['batch_size']), shuffle=True)
+    test_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,subset_index), batch_size=int(config['batch_size']), shuffle=False)
 
     # Define model   
-    model = comical_new_emb(config) if config['out_flag']=='seq_idp' else comical_new_emb_clasf(config)
-    model = mlp_only(config) if config['out_flag']=='mlp' else model
+    model = comical_new_emb(config) if config['out_flag']=='pairs' else mlp_only(config) if config['out_flag']=='mlp' else comical_new_emb_clasf(config)
 
     # GPU settings
     device = "cpu"
@@ -68,30 +67,29 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
     with torch.no_grad():
         for batch_idx, (snp_id,seq,idp_id,idp,target,covariates) in enumerate(tqdm(test_loader,desc='Testing batch loop')):
             seq,snp_id,idp,idp_id = seq.to(device).long(),snp_id.to(device).long(),idp.to(device).long(),idp_id.to(device).long()
-            target = None if config['out_flag'] == 'seq_idp' else target.to(device).float()
-            covariates = None if config['out_flag'] == 'seq_idp' else covariates.to(device).float()
+            target = None if config['out_flag'] == 'pairs' else target.to(device).float()
+            covariates = None if config['out_flag'] == 'pairs' else covariates.to(device).float()
 
             if config['save_embeddings']:
                 logits_seq, logits_idp, _,_  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
             else:
-                if config['out_flag'] == 'seq_idp':
+                if config['out_flag'] == 'pairs':
                     logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
                 else:
                     pred  = model(seq,snp_id,idp,idp_id,config['save_embeddings'],covariates)
             
-            if config['out_flag'] == 'seq_idp':
+            if config['out_flag'] == 'pairs':
                 # Set ground truth following CLIP implementation - output should match batch indeces
                 ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
                 total_loss += (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
             else:
-                # total_loss += loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
-                total_loss += loss_clf(pred,target.long()) 
+                total_loss += loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
             
             # Inputs and Outputs per batch for returning
             seq_l.extend(seq.detach().cpu().numpy())
             idp_l.extend(idp.detach().cpu().numpy())
 
-            if config['out_flag'] == 'seq_idp':
+            if config['out_flag'] == 'pairs':
                 # Compute softmax probs to use for accuracy calculation
                 probs_seq = np.argmax(logits_seq.softmax(dim=-1).cpu().numpy(), axis = 1)
                 probs_idp = np.argmax(logits_idp.softmax(dim=-1).cpu().numpy(), axis = 1)
