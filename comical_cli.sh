@@ -2,6 +2,6 @@
 
 source ~/miniconda3/etc/profile.d/conda.sh
 
-conda activate /u/dmr/ukb-pgx/comical/comical/comical
+conda activate comical-env
 
-python wrapper.py -fo comical_new_top10snps_pairs -bz 7500 -gpu 0 -tr_coco 0 -e 10
+python wrapper.py -fo comical_demo_run -bz 32768 -gpu 7 -e 10

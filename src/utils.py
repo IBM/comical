@@ -47,6 +47,26 @@ def plot_precision_recall_curve(test_preds, test_labels, path):
     plt.savefig(path)
     plt.close()
 
+
+### Training utils ###
+# Obtained from https://stackoverflow.com/questions/71998978/early-stopping-in-pytorch
+class EarlyStopper:
+    def __init__(self, patience=1, min_delta=0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_validation_loss = float('inf')
+
+    def early_stop(self, validation_loss):
+        if validation_loss < self.min_validation_loss:
+            self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif validation_loss > (self.min_validation_loss + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
+
 ### Tokenization Utils ###
 # Code adapted from On Embeddings for Numerical Features in Tabular Deep Learning
 # https://github.com/Yura52/tabular-dl-num-embeddings/blob/main/bin/train4.py - commit e1401da

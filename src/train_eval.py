@@ -7,7 +7,8 @@ import torch.optim as optim
 
 from src.train import train
 from src.test import test_model
-from src.dataset import dataset
+# from src.dataset import dataset
+from src.dataset_template import dataset
 
 
 def train_eval(paths, args, config = None):
@@ -49,7 +50,7 @@ def train_eval(paths, args, config = None):
             'results_path':os.path.join(os.getcwd(),'results',args['fname_root_out']),
             'resume_from_batch':args['resume_from_batch'],
             'ckpt_name':args['ckpt_name'],
-            'subject_based_pred_flag':args['subject_based_pred_flag'],
+            'subject_based_pred_flag':args['downstream_pred_task_flag'],
             'out_flag':args['out_flag'],
             'target':args['target'],
         }

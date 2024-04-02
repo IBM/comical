@@ -22,6 +22,7 @@ from legacy.test import test_model
 
 from torch.utils.tensorboard import SummaryWriter
 from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
+from src.utils import EarlyStopper
 from sklearn.utils.class_weight import compute_class_weight
 
 
@@ -96,10 +97,11 @@ def train(config, data=None, checkpoint_dir=None):
     #     model, optimizer, start_batch = load_ckp(os.path.join(checkpoint_dir,config['last_checkpoint_path']), model, optimizer)
     # else:
     #     start_batch = 0
+    early_stopper = EarlyStopper(patience=10, min_delta=0.00001)
 
     train_losses = []
     val_losses = []
-    embs={'seq_a_embs':[], 'seq_b_embs':[]}
+    embs={'seq_a_embs':[], 'seq_b_embs':[]} 
 
     # Training loop
     print('Training loop started')
@@ -193,6 +195,11 @@ def train(config, data=None, checkpoint_dir=None):
                 writer.add_scalar("Loss/val", total_val_loss.item()/val_steps, epoch)
             print(f'Training loss= {sum_loss} at epoch {epoch}')
             print(f'Vaidation loss= {total_val_loss.item()/val_steps} at epoch {epoch}')
+
+        # Early stopping
+        if early_stopper.early_stop(total_val_loss):
+            print("Early stopping")
+            break
     print("Finished Training")
     if tune == False:
         # Clear tensorboard variables
