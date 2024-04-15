@@ -35,12 +35,10 @@ class dataset(Dataset):
         return mod, mod.index
         
 
-    def load_map_and_pairs(self,mod_b_colname):
-        self.pairs = pd.read_csv(self.path_pairs)
+    def load_colname_mapping(self,mod_b_colname):
         # Can be removed if we are not using the map - template shouldn't use it as data should be properly formatted
         if self.path_mod_b_map:
             self.mod_b_map = pd.read_csv(self.path_mod_b_map, index_col= 1)
-            self.pairs[mod_b_colname] = self.pairs[mod_b_colname].map(self.mod_b_map['Field_ID'].to_dict())
             self.mod_b_map['Field_ID'] = self.mod_b_map['Field_ID'].astype('str')
 
     def load_target_labels(self, index_col = 0):
@@ -75,7 +73,7 @@ class dataset(Dataset):
     def load_data(self, index_col, covariates_names = None):
         self.mod_a, self.mod_a_idx = self.load_modality(self.path_mod_a ,index_col)
         self.mod_b, self.mod_b_idx = self.load_modality(self.path_mod_b, index_col)
-        self.load_map_and_pairs('IDP')
+        self.load_colname_mapping('IDP')
         if self.downstream_pred_task_flag:
             self.target_labels = self.load_target_labels(index_col)
             self.load_covariates(index_col, covariates_names)
@@ -268,7 +266,7 @@ class dataset(Dataset):
     def __init__(self,paths, args):
         # Set paths and args variables
         # Necessary paths
-        self.path_mod_a, self.path_mod_b, self.path_mod_b_map, self.path_pairs = paths['path_mod_a'], paths['path_mod_b'], paths['path_mod_b_map'], paths['path_pairs']
+        self.path_mod_a, self.path_mod_b, self.path_mod_b_map = paths['path_mod_a'], paths['path_mod_b'], paths['path_mod_b_map']
         self.val_size, self.test_size, self.rnd_st, self.pairs_exist, self.fname_root_out, self.top_n_perc = args['val_size'], args['test_size'], args['rnd_st'], args['pairs_exist'], args['fname_root_out'], args['top_n_perc']
         self.downstream_pred_task_flag = args['downstream_pred_task_flag']
         self.path_target_labels = paths['path_target_labels']
