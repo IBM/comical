@@ -7,7 +7,7 @@ import torch.optim as optim
 
 from src.train import train
 from src.test import test_model
-# from src.dataset import dataset
+# from legacy.dataset import dataset
 from src.dataset_template import dataset
 
 
@@ -70,7 +70,7 @@ def train_eval(paths, args, config = None):
     # Evaluate on all data paritions - using best checkpointed model
     # loss_train, acc_train, _ = test_model(config, data, train_idx, best_checkpoint_path)
     # loss_val, acc_val, _ = test_model(config, data, val_idx, best_checkpoint_path)
-    loss_test, acc_test, extra_test = test_model(config, data, test_idx, best_checkpoint_path)
+    loss_test, acc_test, extra_test = test_model(config, args ,data, test_idx, best_checkpoint_path)
 
     # Return dictionary with results, data info
     results_ret = {

@@ -1,6 +1,6 @@
 import os, argparse, time, json
 from src.train_eval import train_eval
-from src.utils import plot_training_curves, plot_roc_curve, plot_precision_recall_curve
+from src.utils import plot_training_curves, plot_roc_curve, plot_precision_recall_curve, select_gpu
 from tabulate import tabulate
 
 # Parse args
@@ -23,10 +23,8 @@ def parse_arguments():
     parser.add_argument("-cov", "--path_covariates", dest='path_covariates', action='store', help="Enter path for covariates file", metavar="COV", default=os.path.join(os.getcwd(),'data','neuroDx_geneticPCs.csv'))
     parser.add_argument("-pmac", "--path_mod_a2group_map", dest='path_mod_a2group_map', action='store', help="Enter path for Modality A to latent grouping mapping file", metavar="PMAC", default=os.path.join(os.getcwd(),'data','SNPs_and_disease_mapping_with_pvalues.csv'))
     parser.add_argument("-pmbc", "--path_mod_b2group_map", dest='path_mod_b2group_map', action='store', help="Enter path for Modality B to latent grouping mapping file", metavar="PMBC", default=os.path.join(os.getcwd(),'data','IDPs_and_disease_mapping.csv'))
-    parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS", default=os.path.join(os.getcwd(),'data','pairs.pickle'))
-
-    #'data/'
-
+    parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS")
+    parser.add_argument("-d", "--path_data", dest='path_data', action='store', help="Enter path for data directory, default is ./data", metavar="D", default=os.path.join(os.getcwd(),'data'))
 
     # Results path
     parser.add_argument("-pr", "--path_res", dest='path_res', action='store', help="Output folder", metavar="PR", default=os.path.join(os.getcwd(),'results')) ##
@@ -44,7 +42,7 @@ def parse_arguments():
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
     parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='32768')
     parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.01')
-    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='100')
+    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='2')
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
     parser.add_argument("-dm", "--d_model", dest='d_model', action='store', help="Enter the model dimensions", metavar="DIMS", default='64')
     parser.add_argument("-nh", "--nhead", dest='nhead', action='store', help="Enter the number of heads on MHA", metavar="MHA", default='4')
@@ -79,6 +77,9 @@ if __name__ == '__main__':
     args = parse_arguments()
 
     ### Set discoverable GPU cards
+    if args.gpu_nums is None:
+        print('No GPU number given, selecting GPU with least memory usage.')
+        args.gpu_nums = ','.join(select_gpu(1,verbose=True))
     # For GPU - Pytorch
     os.environ["CUDA_VISIBLE_DEVICES"]=args.gpu_nums #model will be trained on GPU X
     print('Current working directory: ',os.getcwd())
@@ -91,12 +92,12 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(os.getcwd(),'results',args.fname_out_root))
         print(f'No results directory detected for {args.fname_out_root}, results and checkpoints will be stored in: {os.path.join(os.getcwd(),"results",args.fname_out_root)}')
     # Check if pairs exist
-    if not os.path.isfile(os.path.join(os.getcwd(),'data/pairs.pickle')):
+    if os.path.isfile(os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle')) or args.path_saved_pairs == None:
+        pairs_exist = True
+        print(f'Previously made pairs detected, pairs making will be skipped and pairs will be loaded.')
+    else:
         pairs_exist = False
         print(f'No previously made pairs detected for {args.fname_out_root}, pairs will be generated and saved in this run.')
-    else:
-        pairs_exist = True
-        print(f'Previously made pairs detected in data directory, pairs making will be skipped and pairs will be loaded.')
 
     # Check if checkpoint path was given, and if not, create one
     if args.path_ckpt == None:
@@ -121,7 +122,8 @@ if __name__ == '__main__':
         'path_covariates' : args.path_covariates,
         'path_mod_a2group_map' : args.path_mod_a2group_map,
         'path_mod_b2group_map' : args.path_mod_b2group_map,
-        'path_saved_pairs' : args.path_saved_pairs,
+        'path_saved_pairs' : args.path_saved_pairs if args.path_saved_pairs != None else os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle'),
+        'path_data' : args.path_data,
     }
 
     run_args = {
