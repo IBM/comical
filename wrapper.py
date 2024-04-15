@@ -95,7 +95,7 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(os.getcwd(),'data'))
         print('No data directory detected, data and newly created pairs will be stored in: ',os.path.join(os.getcwd(),'data'))
     # Check if pairs exist
-    if os.path.isfile(os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle')) or args.path_saved_pairs == None:
+    if os.path.isfile(os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle')) or args.path_saved_pairs != None:
         pairs_exist = True
         print(f'Previously made pairs detected, pairs making will be skipped and pairs will be loaded.')
     else:
