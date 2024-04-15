@@ -168,38 +168,40 @@ class dataset(Dataset):
         self.mod_b_id_map = dict(zip(range(len(self.mod_b.columns)),self.mod_b.columns))
         self.mod_a_id_map= dict(zip(range(len(self.mod_a.columns)),self.mod_a.columns))
 
-        pairs_all_idp = {}
+        pairs_all_mod_b = {}
         for grouping in self.matching_grouping:
             print(f'Creating pairs for {grouping}')
             pairs_grouping = {}
             for mod_b_item in self.bucket_mod_b[grouping]:
                 mod_a_items = self.bucket_mod_a[grouping]
                 pairs_grouping[mod_b_item]= mod_a_items
-            pairs_all_idp[grouping] = pairs_grouping
+            pairs_all_mod_b[grouping] = pairs_grouping
 
-            pairs_all = {}
+        pairs_all_mod_a= {}
         for grouping in self.matching_grouping:
             print(f'Creating pairs for {grouping}')
             pairs_grouping = {}
             for mod_a_item in self.bucket_mod_a[grouping]:
                 mod_b_items = self.bucket_mod_b[grouping]
                 pairs_grouping[mod_a_item]= mod_b_items
-            pairs_all[grouping] = pairs_grouping
+            pairs_all_mod_a[grouping] = pairs_grouping
+
+        # For every key in the dictionary, get the values and append them to a list
+        dd_mod_a = defaultdict(list)
+        for k in pairs_all_mod_a.keys():
+            for key, value in pairs_all_mod_a[k].items():
+                dd_mod_a[key].append(value)
+
+        dd_mod_b = defaultdict(list)
+        for k in pairs_all_mod_a.keys():
+            for key, value in pairs_all_mod_b[k].items():
+                dd_mod_b[key].append(value)
         
-        self.dd_idp = defaultdict(list)
-
-        for d in (pairs_all_idp['AD'],pairs_all_idp['ADHD'],pairs_all_idp['BPD'], pairs_all_idp['MD'], pairs_all_idp['MS'], pairs_all_idp['PD'], pairs_all_idp['Unipolar_Depression']): # you can list as many input dicts as you want here
-            for key, value in d.items():
-                self.dd_idp[key].append(value)
-        self.dd = defaultdict(list)
-
-        for d in (pairs_all['AD'],pairs_all['ADHD'],pairs_all['BPD'], pairs_all['MD'], pairs_all['MS'], pairs_all['PD'], pairs_all['Unipolar_Depression']): # you can list as many input dicts as you want here
-            for key, value in d.items():
-                self.dd[key].append(value)
+        return dd_mod_a, dd_mod_b
 
         
     def get_pairs_for_test(self):
-        return self.dd_idp, self.dd 
+        return self.dd_mod_b, self.dd_mod_a
     
     def get_token_maps(self):
         return self.mod_b_id_map, self.mod_a_id_map
@@ -209,7 +211,7 @@ class dataset(Dataset):
             self.pair_dictionary = pickle.load(outfile)
 
 
-    def extend_pairs(self, ):  
+    def extend_pairs(self):  
         self.pairs = []
         self.mod_b_items = []
         print('Converting loaded dataset to Tensors started')
@@ -274,6 +276,7 @@ class dataset(Dataset):
         self.path_mod_a2group_map = paths['path_mod_a2group_map']
         self.path_mod_b2group_map = paths['path_mod_b2group_map']
         path_saved_pairs = paths['path_saved_pairs']
+        self.path_data = paths["path_data"]
         self.grouping = args['target']
         index_col = args['index_col']
         covariates_names =  args['covariates_names']
@@ -300,14 +303,13 @@ class dataset(Dataset):
             else:
                 self.embedded_data = self.set_tabular_embeddings(count_bins, self.mod_b)# remains to be decided where to perform as this will require to first perfrom the data splits
                 self.pair_dictionary = self.create_pairs(self.bucket_mod_a, self.bucket_mod_b, self.matching_grouping)
-                print(f'Saving created pairs in {os.path.join(os.getcwd(),"data/pairs.pickle")}')
+                print(f'Saving created pairs in {path_saved_pairs}')
                 with open(path_saved_pairs, "wb") as outfile:
                     pickle.dump(self.pair_dictionary, outfile)
-
             # self.tensorize_data()
             self.extend_pairs()
             self.set_data_splits()
-            self.create_pairs_for_test()
+            self.dd_mod_a, self.dd_mod_b = self.create_pairs_for_test()
     
     def __len__(self):
         # TODO: Update based on data pair definition

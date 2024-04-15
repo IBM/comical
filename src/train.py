@@ -18,8 +18,6 @@ import pickle
 # from ray.tune.schedulers import ASHAScheduler
 # from ray.tune import CLIReporter
 
-from legacy.test import test_model
-
 from torch.utils.tensorboard import SummaryWriter
 from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
 from src.utils import EarlyStopper
