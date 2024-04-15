@@ -18,7 +18,6 @@ def parse_arguments():
     parser.add_argument("-ps", "--path_seq", dest='path_seq', action='store', help="Enter path for SNP sequences file", metavar="PS", default=os.path.join(os.getcwd(),'data','snp-encodings-from-vcf.csv'))
     parser.add_argument("-pi", "--path_idp", dest='path_idp', action='store', help="Enter path for IDPs file", metavar="PI", default=os.path.join(os.getcwd(),'data','T1_struct_brainMRI_IDPs.csv'))
     parser.add_argument("-pm", "--path_mod_b_map", dest='path_mod_b_map', action='store', help="Enter path for Modality B mapping file (optional)", metavar="PM", default=os.path.join(os.getcwd(),'data','T1mri.csv'))
-    parser.add_argument("-pp", "--path_pairs", dest='path_pairs', action='store', help="Enter path for pairing matches file", metavar="PP", default=os.path.join(os.getcwd(),'data','pairs.csv'))
     parser.add_argument("-pt", "--path_target_labels", dest='path_target_labels', action='store', help="Enter path for subject labels file", metavar="PT", default=os.path.join(os.getcwd(),'data','neuroDx.csv'))
     parser.add_argument("-cov", "--path_covariates", dest='path_covariates', action='store', help="Enter path for covariates file", metavar="COV", default=os.path.join(os.getcwd(),'data','neuroDx_geneticPCs.csv'))
     parser.add_argument("-pmac", "--path_mod_a2group_map", dest='path_mod_a2group_map', action='store', help="Enter path for Modality A to latent grouping mapping file", metavar="PMAC", default=os.path.join(os.getcwd(),'data','SNPs_and_disease_mapping_with_pvalues.csv'))
@@ -91,6 +90,10 @@ if __name__ == '__main__':
     if not os.path.isdir(os.path.join(os.getcwd(),'results',args.fname_out_root)):
         os.mkdir(os.path.join(os.getcwd(),'results',args.fname_out_root))
         print(f'No results directory detected for {args.fname_out_root}, results and checkpoints will be stored in: {os.path.join(os.getcwd(),"results",args.fname_out_root)}')
+    # Create data directory if not exist
+    if not os.path.isdir(os.path.join(os.getcwd(),'data')) and args.path_data != os.path.join(os.getcwd(),'data'):
+        os.mkdir(os.path.join(os.getcwd(),'data'))
+        print('No data directory detected, data and newly created pairs will be stored in: ',os.path.join(os.getcwd(),'data'))
     # Check if pairs exist
     if os.path.isfile(os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle')) or args.path_saved_pairs == None:
         pairs_exist = True
@@ -112,7 +115,6 @@ if __name__ == '__main__':
     paths = {
         'path_mod_a' : args.path_seq,
         'path_mod_b' : args.path_idp,
-        'path_pairs' : args.path_pairs,
         'path_mod_b_map' : args.path_mod_b_map,
         'path_res' : args.path_res,
         'checkpoint_name' : path_ckpt,
