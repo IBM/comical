@@ -7,8 +7,9 @@
 
 queue="x86_6h"
 # FIRST STEP LAST
-epochs=($(seq 1 1 5))
-mem="100g"
+# epochs=($(seq 1 1 5))
+epochs=(1)
+mem="50g"
 batches=(50000)
 # numbers=(0.5 1.0 5.0 10.0 15.0 20.0)
 numbers=(0.5)
@@ -19,10 +20,12 @@ idp_data="/dccstor/ukb-pgx/comical/comical/data/T1_struct_brainMRI_IDPs.csv"
 idp_map="/dccstor/ukb-pgx/comical/comical/data/T1mri.csv"
 idp_bucket="/dccstor/ukb-pgx/comical/comical/data/IDPs_and_disease_mapping.csv"
 seq_bucket="/dccstor/ukb-pgx/comical/comical/data/SNPs_and_disease_mapping_with_pvalues.csv"
+target_labels="/dccstor/ukb-pgx/comical/comical/data/neuroDx.csv"
+covariates="/dccstor/ukb-pgx/comical/comical/data/neuroDx_geneticPCs.csv"
 
 # adding '-require a100_80gb' never started to run...so resource never became available
 
-for batch_size in "${batches[@]}"; do-
+for batch_size in "${batches[@]}"; do
 
 	for ep in "${epochs[@]}"; do
 
@@ -33,7 +36,8 @@ for batch_size in "${batches[@]}"; do-
     		jbsub -cores 2+2 -q $queue -mem $mem -name $jobname \
 	 			  -out ${jobname}.out -err ${jobname}.err python wrapper.py --fname_out_root $jobname \
 	    		  --top_n_perc $num --epochs $ep --batch_size $batch_size \
-	    		  -ps $seq_data -pi $idp_data -pm $idp_map -pbi $idp_bucket -pbs $seq_bucket
+	    		  -ps $seq_data -pi $idp_data -pm $idp_map -pmbc $idp_bucket -pmac $seq_bucket \
+				  -pt $target_labels -cov $covariates
 		done
 
 	done

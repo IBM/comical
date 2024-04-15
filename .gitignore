@@ -1,3 +1,6 @@
 data/*
 results/*
 legacy/*
+*.err
+*.out
+*.sh
