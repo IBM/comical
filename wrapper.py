@@ -22,7 +22,7 @@ def parse_arguments():
     parser.add_argument("-cov", "--path_covariates", dest='path_covariates', action='store', help="Enter path for covariates file", metavar="COV", default=os.path.join(os.getcwd(),'data','neuroDx_geneticPCs.csv'))
     parser.add_argument("-pmac", "--path_mod_a2group_map", dest='path_mod_a2group_map', action='store', help="Enter path for Modality A to latent grouping mapping file", metavar="PMAC", default=os.path.join(os.getcwd(),'data','SNPs_and_disease_mapping_with_pvalues.csv'))
     parser.add_argument("-pmbc", "--path_mod_b2group_map", dest='path_mod_b2group_map', action='store', help="Enter path for Modality B to latent grouping mapping file", metavar="PMBC", default=os.path.join(os.getcwd(),'data','IDPs_and_disease_mapping.csv'))
-    parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS")
+    parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS") #pairs_top_n_0.5
     parser.add_argument("-d", "--path_data", dest='path_data', action='store', help="Enter path for data directory, default is ./data", metavar="D", default=os.path.join(os.getcwd(),'data'))
 
     # Results path

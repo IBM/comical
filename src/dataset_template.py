@@ -216,7 +216,7 @@ class dataset(Dataset):
         for grouping in tqdm(self.pair_dictionary.keys()):
             for mod_b_item in self.pair_dictionary[grouping].keys():
                 self.pairs.extend(self.pair_dictionary[grouping][mod_b_item]['pairs'].astype('float'))
-                self.mod_b_items.extend(self.pair_dictionary[grouping][mod_b_item]['embedded_idp']) # embedded_mod_b_item
+                self.mod_b_items.extend(self.pair_dictionary[grouping][mod_b_item]['embedded_mod_b_item']) # embedded_mod_b_item | embedded_idp
         self.pairs = np.asarray(self.pairs)
         self.mod_b_items = stack(self.mod_b_items)
 
