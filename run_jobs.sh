@@ -5,7 +5,7 @@
 # >> jbsub -cores 1+1 -q x86_6h -mem 15g -interactive bash
 # >> nohup python wrapper.py --fname_out_root myson_top_n_perc_0.5 --top_n_perc 0.5 --epochs 10 > nohup.out 2>&1 &
 
-queue="x86_6h"
+queue="x86_24h"
 # FIRST STEP LAST
 # epochs=($(seq 1 1 5))
 epochs=(1)
