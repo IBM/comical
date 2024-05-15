@@ -109,6 +109,8 @@ def train(config, data=None, checkpoint_dir=None):
     uniqueness = {'seq_a_uniques': [], 'seq_b_uniques': []}
     embs={'seq_a_embs':[], 'seq_b_embs':[]} 
 
+    # TODO: Implement warmup training
+
     # Training loop
     print('Training loop started')
     for epoch in tqdm(range(config['epochs']),desc='Training epoch loop'): 
