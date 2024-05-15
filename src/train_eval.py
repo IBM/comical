@@ -60,7 +60,7 @@ def train_eval(paths, args, config = None):
             'target':args['target'],
         }
     ### Train model ###
-    train_losses, val_losses = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
+    train_losses, val_losses, val_accs, uniqueness = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
 
     ## Evaluate model ##
     # Select checkpoint with the lowest loss on validation set
@@ -85,8 +85,11 @@ def train_eval(paths, args, config = None):
         'data':{
             'train_losses': train_losses,
             'val_losses':val_losses,
+            'val_accs':val_accs,
             'test_preds': [str(i) for i in extra_test['preds']],
             'test_labels': [str(i) for i in extra_test['target']],
+            'uniqueness_a' : uniqueness['seq_a_uniques'],
+            'uniqueness_b' : uniqueness['seq_b_uniques'],
         },
         'hyperparams':{
             'lr':config["lr"],

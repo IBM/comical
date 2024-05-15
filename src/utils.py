@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt 
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 import subprocess
+from collections import Counter
+import os
 
 ### General Utils ###
 def select_gpu(num_gpus=1,verbose=False):
@@ -30,7 +32,7 @@ def select_gpu(num_gpus=1,verbose=False):
 
 
 ### Results Utils ###
-def plot_training_curves(train_losses, val_losses, path):
+def plot_training_curves(train_losses, val_losses, val_acc, path):
     # Plot training curves
     plt.figure(figsize=(10, 10))
     plt.plot(train_losses, label='Train')
@@ -38,8 +40,17 @@ def plot_training_curves(train_losses, val_losses, path):
     plt.ylabel('Loss')
     plt.xlabel('Epochs')
     plt.legend()
-    plt.savefig(path)
+    plt.savefig(os.path.join(path,'training_curves.pdf'))
     plt.close()
+    ### Add accuracy plot
+    if val_acc is not None:
+        plt.figure(figsize=(10, 10))
+        plt.plot(val_acc, label='Validation Accuracy')
+        plt.ylabel('Accuracy')
+        plt.xlabel('Epochs')
+        plt.legend()
+        plt.savefig(os.path.join(path,'validation_accuracy.pdf'))
+        plt.close()
 
 # Plot AUC-ROC curve
 def plot_roc_curve(test_preds, test_labels, path):
@@ -71,6 +82,31 @@ def plot_precision_recall_curve(test_preds, test_labels, path):
     plt.savefig(path)
     plt.close()
 
+def plot_uniqueness(uniqueness, path):
+    plt.figure(figsize=(10, 10))
+    plt.plot(uniqueness)
+    plt.ylabel('# of unique predictions')
+    plt.xlabel('Batches')
+    plt.title('Uniqueness')
+    plt.savefig(path)
+    plt.close()
+
+def calculate_acc(seq,snp_id,idp,idp_id, probs_seq, probs_idp, dd_idp, dd, idp_id_map, snp_id_map):
+    global master_pair_freq_dict
+    pairs = []
+    correct = 0.0
+    for i,j in enumerate(probs_seq):
+        if idp_id_map[idp_id[j]] in dd[snp_id_map[snp_id[i]]][0]:
+            correct += 1
+            pairs.append( (dd_idp[idp_id_map[idp_id[i]]][0][0], idp_id_map[idp_id[j]]) ) # flipped from Diego order so its always (SNP, IDP)
+
+    for i,j in enumerate(probs_idp):
+        if snp_id_map[snp_id[j]] in dd_idp[idp_id_map[idp_id[i]]][0]:
+            correct += 1
+            pairs.append( (snp_id_map[snp_id[j]], dd[snp_id_map[snp_id[i]]][0][0]) )
+
+    acc = correct / len(probs_seq) /2 
+    return acc
 
 ### Training utils ###
 # Obtained from https://stackoverflow.com/questions/71998978/early-stopping-in-pytorch

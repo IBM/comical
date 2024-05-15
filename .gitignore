@@ -2,3 +2,5 @@ data/*
 results/*
 legacy/*
 pairs_freqs_pvals_0.5.csv
+results_tuning/*
+hyperparameter_search.sh
