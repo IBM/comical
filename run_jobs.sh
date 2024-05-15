@@ -8,10 +8,10 @@
 queue="x86_24h"
 # FIRST STEP LAST
 # epochs=($(seq 1 1 5))
-epochs=(1)
-mem="50g"
+epochs=( 1 5 10 15 ) # 20 25 100)
+mem="200g"
 batches=(50000)
-# numbers=(0.5 1.0 5.0 10.0 15.0 20.0)
+# numbers=(5.0 10.0 15.0)
 numbers=(0.5)
 name="CMCL"
 
@@ -33,11 +33,11 @@ for batch_size in "${batches[@]}"; do
 
 			jobname=${name}"_per_"${num}"_ep_"${ep}"_ba_"${batch_size}
 
-    		jbsub -cores 2+2 -q $queue -mem $mem -name $jobname \
+    		jbsub -cores 1+1 -q $queue -mem $mem -name $jobname \
 	 			  -out ${jobname}.out -err ${jobname}.err python wrapper.py --fname_out_root $jobname \
 	    		  --top_n_perc $num --epochs $ep --batch_size $batch_size \
 	    		  -ps $seq_data -pi $idp_data -pm $idp_map -pmbc $idp_bucket -pmac $seq_bucket \
-				  -pt $target_labels -cov $covariates
+				  -pt $target_labels -cov $covariates -lr 1e-3
 		done
 
 	done

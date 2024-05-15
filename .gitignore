@@ -5,3 +5,4 @@ legacy/*
 *.out
 *.sh
 pairs_freqs_pvals_0.5.csv
+*.pickle

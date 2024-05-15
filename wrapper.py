@@ -22,8 +22,8 @@ def parse_arguments():
     parser.add_argument("-cov", "--path_covariates", dest='path_covariates', action='store', help="Enter path for covariates file", metavar="COV", default=os.path.join(os.getcwd(),'data','neuroDx_geneticPCs.csv'))
     parser.add_argument("-pmac", "--path_mod_a2group_map", dest='path_mod_a2group_map', action='store', help="Enter path for Modality A to latent grouping mapping file", metavar="PMAC", default=os.path.join(os.getcwd(),'data','SNPs_and_disease_mapping_with_pvalues.csv'))
     parser.add_argument("-pmbc", "--path_mod_b2group_map", dest='path_mod_b2group_map', action='store', help="Enter path for Modality B to latent grouping mapping file", metavar="PMBC", default=os.path.join(os.getcwd(),'data','IDPs_and_disease_mapping.csv'))
-    parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS")
-    parser.add_argument("-d", "--path_data", dest='path_data', action='store', help="Enter path for data directory, default is ./data", metavar="D", default=os.path.join(os.getcwd(),'data'))
+    parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS") #pairs_top_n_0.5
+    parser.add_argument("-d", "--path_data", dest='path_data', action='store', help="Enter path for data directory, default is ./data", metavar="D", default='')
 
     # Results path
     parser.add_argument("-pr", "--path_res", dest='path_res', action='store', help="Output folder", metavar="PR", default=os.path.join(os.getcwd(),'results')) ##
@@ -95,7 +95,7 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(os.getcwd(),'data'))
         print('No data directory detected, data and newly created pairs will be stored in: ',os.path.join(os.getcwd(),'data'))
     # Check if pairs exist
-    if os.path.isfile(os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle')) or args.path_saved_pairs == None:
+    if os.path.isfile(os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle')) or args.path_saved_pairs != None:
         pairs_exist = True
         print(f'Previously made pairs detected, pairs making will be skipped and pairs will be loaded.')
     else:
