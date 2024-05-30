@@ -20,8 +20,9 @@ import pickle
 
 from torch.utils.tensorboard import SummaryWriter
 from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
-from src.utils import EarlyStopper
+from src.utils import EarlyStopper, calculate_acc
 from sklearn.utils.class_weight import compute_class_weight
+from tabulate import tabulate
 
 
 
@@ -29,6 +30,11 @@ def train(config, data=None, checkpoint_dir=None):
     # Tensorboard set  up
     writer = SummaryWriter(config['tensorboard_log_path'])
     tune = config['tune']
+
+    # Call functions from dataset to get pair buckets for evaluation of model (accuracy calculation)
+    if config['out_flag'] == 'pairs':
+        dd_seq_b, dd_seq_a = data.get_pairs_for_test()
+        seq_b_id_map, seq_a_id_map = data.get_token_maps()
 
     # Define dataloaders
     train_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['train_index']), batch_size=int(config["batch_size"]), shuffle=True)
@@ -80,7 +86,8 @@ def train(config, data=None, checkpoint_dir=None):
 
     
     # Added classification and regression losses
-    if config['out_flag'] == 'clf' or config['out_flag'] == 'mlp':
+    # if config['out_flag'] == 'clf' or config['out_flag'] == 'mlp':
+    if config['out_flag'] in ['clf', 'mlp']:
         # Add class weights for imbalanced data on classification task
         class_weights=torch.tensor(compute_class_weight('balanced', classes=np.unique(data.get_labels()), y=data.get_labels()),dtype=torch.float).to(device)
         loss_clf = nn.CrossEntropyLoss(weight=class_weights)
@@ -91,14 +98,27 @@ def train(config, data=None, checkpoint_dir=None):
         loss_seq_a = nn.CrossEntropyLoss()
         loss_seq_b = nn.CrossEntropyLoss()
 
+    # Learning rate scheduler with warm-up
+    def lambda_lr(step):
+        warmup_steps = config['warmup_steps']
+        if step < warmup_steps:
+            return step / warmup_steps
+        return 1.0
+    
+    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_lr)
+    
+
     # if config['resume_from_batch']:
     #     model, optimizer, start_batch = load_ckp(os.path.join(checkpoint_dir,config['last_checkpoint_path']), model, optimizer)
     # else:
     #     start_batch = 0
+        
     early_stopper = EarlyStopper(patience=10, min_delta=0.00001)
 
     train_losses = []
     val_losses = []
+    val_accs = []
+    uniqueness = {'seq_a_uniques': [], 'seq_b_uniques': []}
     embs={'seq_a_embs':[], 'seq_b_embs':[]} 
 
     # Training loop
@@ -135,6 +155,7 @@ def train(config, data=None, checkpoint_dir=None):
             total_loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm = 2.0, norm_type=2) # gradient clipping to avoid vanishing/exploding gradients
             optimizer.step()
+            scheduler.step()
             # save_ckp_batch(epoch,batch_idx,model,optimizer,checkpoint_dir)
 
         # loss per epoch
@@ -148,6 +169,8 @@ def train(config, data=None, checkpoint_dir=None):
         val_loss = 0.0
         val_steps = 0
         val_auc = 0.
+        val_acc = 0.
+        
         # Bring model to evaluation mode
         model.eval()
         with torch.no_grad():
@@ -168,11 +191,26 @@ def train(config, data=None, checkpoint_dir=None):
                 if config['out_flag'] == 'pairs':
                     ground_truth = torch.arange(len(seq_a),dtype=torch.long,device=device)
                     total_val_loss = (loss_seq_a(logits_seq_a,ground_truth) + loss_seq_b(logits_seq_b,ground_truth))/2
+                    # Compute softmax probs to use for accuracy calculation
+                    probs_seq_a = np.argmax(logits_seq_a.softmax(dim=-1).cpu().numpy(), axis = 1)
+                    probs_seq_b = np.argmax(logits_seq_b.softmax(dim=-1).cpu().numpy(), axis = 1)
+                    # Calculte accuracy per batch
+                    val_acc += calculate_acc(seq_a.cpu().numpy(),input_a_id.cpu().numpy(),seq_b.cpu().numpy(),input_b_id.cpu().numpy(), probs_seq_a, probs_seq_b,dd_seq_b, dd_seq_a, seq_b_id_map, seq_a_id_map)
+                    # Calculate distribution of pairs for debugging every 10% of the validation set
+                    if batch_idx % int(len(val_loader)/10) == 0:
+                        seq_a_uniques, seq_a_counts = np.unique(probs_seq_a, return_counts=True)
+                        seq_b_uniques, seq_b_counts = np.unique(probs_seq_b, return_counts=True)
+                        print(tabulate(zip(seq_a_uniques,seq_a_counts), headers=['seq_a_uniques','seq_a_counts']))
+                        print(tabulate(zip(seq_b_uniques,seq_b_counts), headers=['seq_b_uniques','seq_b_counts']))
+                        uniqueness['seq_a_uniques'].extend(seq_a_uniques)
+                        uniqueness['seq_b_uniques'].extend(seq_b_uniques)
+                        
                 else:
                     total_val_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
                 val_loss += total_val_loss
                 val_steps += 1
-        
+                val_acc /= (batch_idx+1)
+            print("Number of batches in validation loader",int(len(val_loader)))
             # Use if raytune is implemented
             if tune:
                 os.makedirs("my_model", exist_ok=True)
@@ -190,6 +228,7 @@ def train(config, data=None, checkpoint_dir=None):
                     'loss': total_loss,
                     },  os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}'))
                 val_losses.append(total_val_loss.item()/val_steps)
+                val_accs.append(val_acc)
                 writer.add_scalar("Loss/val", total_val_loss.item()/val_steps, epoch)
             print(f'Training loss= {sum_loss} at epoch {epoch}')
             print(f'Vaidation loss= {total_val_loss.item()/val_steps} at epoch {epoch}')
@@ -211,4 +250,4 @@ def train(config, data=None, checkpoint_dir=None):
             emb_plot(os.path.join(os.getcwd(),'results',config['fname_root_out']),embs)
 
 
-        return train_losses, val_losses
+        return train_losses, val_losses, val_accs, uniqueness

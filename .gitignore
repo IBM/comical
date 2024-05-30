@@ -1,4 +1,9 @@
 data/*
 results/*
+results_tuning/*
+results_top_n_percent/*
 legacy/*
 pairs_freqs_pvals_0.5.csv
+results_tuning/*
+hyperparameter_search.sh
+
