@@ -11,12 +11,14 @@ from tqdm import tqdm
 import pickle
 # from src.emb_plot import emb_plot
 # TODO implement automatic hyperparameter tuning
-# import ray
-# from ray import tune
-# from ray.air import session
+import ray
+from ray import tune
+from ray.air import session
 # from ray.air.checkpoint import Checkpoint
-# from ray.tune.schedulers import ASHAScheduler
-# from ray.tune import CLIReporter
+from ray.train import Checkpoint
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune import CLIReporter
+import tempfile
 
 from torch.utils.tensorboard import SummaryWriter
 from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
@@ -26,10 +28,12 @@ from tabulate import tabulate
 
 
 
+
 def train(config, data=None, checkpoint_dir=None):
     # Tensorboard set  up
     writer = SummaryWriter(config['tensorboard_log_path'])
     tune = config['tune']
+    tune = True
 
     # Call functions from dataset to get pair buckets for evaluation of model (accuracy calculation)
     if config['out_flag'] == 'pairs':
@@ -82,7 +86,8 @@ def train(config, data=None, checkpoint_dir=None):
     # Optimizer using clip settings (could be updated / added to hyperparmeter configuration)
     # optimizer = optim.Adam(model.parameters(), lr=5e-5,betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
     
-    optimizer = optim.Adam(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
+    # optimizer = optim.Adam(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
+    optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=config['weight_decay'])
 
     
     # Added classification and regression losses
@@ -120,6 +125,16 @@ def train(config, data=None, checkpoint_dir=None):
     val_accs = []
     uniqueness = {'seq_a_uniques': [], 'seq_b_uniques': []}
     embs={'seq_a_embs':[], 'seq_b_embs':[]} 
+
+    if tune:
+        checkpoint = ray.train.get_checkpoint()
+        if checkpoint:
+            with checkpoint.as_directory() as checkpoint_dir:
+                print('checkpoint_dir',ray.train.get_checkpoint())
+                checkpoint_dict = torch.load(os.path.join(checkpoint_dir, "checkpoint.pt"))
+                start = checkpoint_dict["epoch"]
+                model.load_state_dict(checkpoint_dict["model_state"])
+
 
     # Training loop
     print('Training loop started')
@@ -213,23 +228,31 @@ def train(config, data=None, checkpoint_dir=None):
             print("Number of batches in validation loader",int(len(val_loader)))
             # Use if raytune is implemented
             if tune:
-                os.makedirs("my_model", exist_ok=True)
-                torch.save(
-                    (model.state_dict(), optimizer.state_dict()), "my_model/checkpoint.pt")
-                checkpoint = Checkpoint.from_directory("my_model")
-                session.report({"loss": (total_val_loss / val_steps)}, checkpoint=checkpoint)
-            else:
-                os.makedirs(checkpoint_dir, exist_ok=True)
-                # Save model and info per epoch
-                torch.save({
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': total_loss,
-                    },  os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}'))
-                val_losses.append(total_val_loss.item()/val_steps)
-                val_accs.append(val_acc)
-                writer.add_scalar("Loss/val", total_val_loss.item()/val_steps, epoch)
+                # os.makedirs(os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}'), exist_ok=True)
+                # torch.save(
+                #     (model.state_dict(), optimizer.state_dict()), os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}.pt'))
+                # checkpoint = Checkpoint.from_directory(os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}.pt'))
+                # session.report({"loss": (total_val_loss / val_steps)}, checkpoint=checkpoint)
+
+                with tempfile.TemporaryDirectory() as tempdir:
+                    torch.save(
+                        {"epoch": epoch, "model_state": model.state_dict()},
+                        os.path.join(tempdir, "checkpoint.pt"),
+                    )
+                    print("Saving checkpoint to", tempdir)
+                    ray.train.report(metrics={"loss": (total_val_loss.cpu().numpy() / val_steps)}, checkpoint=Checkpoint.from_directory(tempdir))
+            # else:
+            #     os.makedirs(checkpoint_dir, exist_ok=True)
+            #     # Save model and info per epoch
+            #     torch.save({
+            #         'epoch': epoch,
+            #         'model_state_dict': model.state_dict(),
+            #         'optimizer_state_dict': optimizer.state_dict(),
+            #         'loss': total_loss,
+            #         },  os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}.pt'))
+            #     val_losses.append(total_val_loss.item()/val_steps)
+            #     val_accs.append(val_acc)
+            #     writer.add_scalar("Loss/val", total_val_loss.item()/val_steps, epoch)
             print(f'Training loss= {sum_loss} at epoch {epoch}')
             print(f'Vaidation loss= {total_val_loss.item()/val_steps} at epoch {epoch}')
 

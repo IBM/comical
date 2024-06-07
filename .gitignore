@@ -6,4 +6,7 @@ legacy/*
 pairs_freqs_pvals_0.5.csv
 results_tuning/*
 hyperparameter_search.sh
+top_snps_script.sh
+ray_results/*
+ray_tmp/*
 

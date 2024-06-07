@@ -11,12 +11,13 @@ from src.test import test_model
 from src.dataset_template import dataset
 
 # Imports for hyperparameter tuning
-# import ray
-# from ray import tune
-# from ray.air import session, RunConfig
+import ray
+from ray import tune
+from ray.air import session, RunConfig
 # from ray.air.checkpoint import Checkpoint
-# from ray.tune.schedulers import ASHAScheduler
-# from ray.tune import CLIReporter
+from ray.train import Checkpoint
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune import CLIReporter
 
 
 def train_eval(paths, args, config = None):
@@ -41,6 +42,7 @@ def train_eval(paths, args, config = None):
             'tune' : args['tune_flag'],
             ## Training hyperparms
             "lr": args['learning_rate'],
+            'weight_decay': args['weight_decay'],
             "batch_size" : args['batch_size'],
             "epochs":args['epochs'],
             ## Model hyperparams
@@ -78,15 +80,16 @@ def train_eval(paths, args, config = None):
             'test_index' : test_idx,
             'tune' : args['tune_flag'],
             ## Training hyperparms
-            "lr": tune.grid_search([0.001,0.0001,0.00001]),
-            "batch_size" : args['batch_size'],
+            "lr": tune.loguniform(1e-5, 1e-2), #0.0001
+            'weight_decay': tune.loguniform(1e-3, 1e-1),
+            "batch_size" : tune.grid_search([4096,32768]),
             "epochs":args['epochs'],
             ## Model hyperparams
             'units': args['units'],
             'num_layers' : args['num_layers'],
-            'd_model' : args['d_model'], 
+            'd_model' : tune.grid_search([64,128,256]), 
             'nhead': args['nhead'],
-            'dim_feedforward' : args['dim_feedforward'],
+            'dim_feedforward' : tune.grid_search([64,128,256]),
             'dropout' : args['dropout'],
             'layer_norm_eps' : 0.000001,
             'activation' : 'gelu',
@@ -104,14 +107,14 @@ def train_eval(paths, args, config = None):
             'subject_based_pred_flag':args['downstream_pred_task_flag'],
             'out_flag':args['out_flag'],
             'target':args['target'],
-            'warmup_steps' : 2000, # using 2000 as recommended in clip paper
+            'warmup_steps' : tune.loguniform(1e2, 1e4), # using 2000 as recommended in clip paper
         }
         scheduler = ASHAScheduler(
             max_t=10,
             grace_period=3,
             reduction_factor=3,
-            metric='auc',
-            mode='max',
+            metric='loss',
+            mode='min',
         )
 
         reporter = CLIReporter(
@@ -120,27 +123,29 @@ def train_eval(paths, args, config = None):
         tuner = tune.Tuner(
             tune.with_resources(
                 tune.with_parameters(train, data = data),
-                resources={"cpu": 24, "gpu": float(args.gpus_per_trial)}
+                # resources={"cpu": 24, "gpu": float(args['gpus_per_trial'])}
+                resources={"cpu": 16, "gpu": float(args['gpus_per_trial'])}
             ),
             tune_config=tune.TuneConfig(
-                metric="auc",
-                mode="max",
+                # metric="auc", # dealt with in scheduler
+                # mode="max",
                 scheduler=scheduler,
                 num_samples=1,
             ),
             param_space=config,
-            run_config=RunConfig(local_dir="./ray_results")
+            run_config=RunConfig(storage_path =os.path.abspath("./ray_results")) # used to be local_dir, but new version of ray uses storage_path
         )
         # Run hyperparameter tuning and report training results
         ray.init(_temp_dir='/home/machad/fast/comical/ray_tmp')
         result = tuner.fit()
-        best_trial = result.get_best_result("auc", "max")
+        best_trial = result.get_best_result("loss", "min")
         print("Best trial config: {}".format(best_trial.config))
-        print("Best trial final AUC: {}".format(best_trial.metrics["auc"]))
+        print("Best trial final AUC: {}".format(best_trial.metrics["loss"]))
         print("Best trial final validation loss: {}".format(best_trial.metrics["loss"]))
         # Prepare to predict on test set using best trial
         config = best_trial.config
-        best_checkpoint_path = os.path.join(os.path.dirname(best_trial.checkpoint._local_path),'my_model','checkpoint.pt')
+        # best_checkpoint_path = os.path.join(os.path.dirname(best_trial.checkpoint._local_path),'my_model','checkpoint.pt')
+        best_checkpoint_path = os.path.join(best_trial.checkpoint.path,'checkpoint.pt')
 
     else:
         train_losses, val_losses, val_accs, uniqueness = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
@@ -165,13 +170,13 @@ def train_eval(paths, args, config = None):
             'acc_test':acc_test,
         },
         'data':{
-            'train_losses': train_losses,
-            'val_losses':val_losses,
-            'val_accs':val_accs,
+            'train_losses': train_losses if args['tune_flag'] == False else None,
+            'val_losses':val_losses if args['tune_flag'] == False else None,
+            'val_accs':val_accs if args['tune_flag'] == False else None,
             'test_preds': [str(i) for i in extra_test['preds']],
             'test_labels': [str(i) for i in extra_test['target']],
-            'uniqueness_a' : uniqueness['seq_a_uniques'],
-            'uniqueness_b' : uniqueness['seq_b_uniques'],
+            'uniqueness_a' : uniqueness['seq_a_uniques'] if args['tune_flag'] == False else None, 
+            'uniqueness_b' : uniqueness['seq_b_uniques'] if args['tune_flag'] == False else None,
         },
         'hyperparams':{
             'lr':config["lr"],

@@ -33,14 +33,16 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
-        if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model) # TODO: implement DDP for better paralelization (if needed)
+        if config['tune'] == False:
+            if torch.cuda.device_count() > 1:
+                model = nn.DataParallel(model) # TODO: implement DDP for better paralelization (if needed)
     model = model.to(device)
 
     # Load state for best model
     if config['tune']:
-        model_state, optimizer_state = torch.load(os.path.join(best_checkpoint_name, ".pt"))
-
+        # model_state, optimizer_state = torch.load(best_checkpoint_name)
+        model_dict = torch.load(best_checkpoint_name)
+        model_state = model_dict['model_state']
     else:
         # model_state, optimizer_state = torch.load(best_checkpoint_name)
         model_dict = torch.load(best_checkpoint_name)

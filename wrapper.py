@@ -37,9 +37,10 @@ def parse_arguments():
     parser.add_argument("-vsz", "--val_sz", dest='val_size', action='store', help='Enter percentage of data used for validation data split (eg. 20)', metavar='VALSZ', default='20')
     parser.add_argument("-tsz", "--test_sz", dest='test_size', action='store', help='Enter percentage of data used for test data split (eg. 10)', default='10')
     parser.add_argument("-gpu", "--gpu_nums", dest='gpu_nums', action='store', help="Enter the gpus to use", metavar="GPU")
-    parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='0')
+    parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='6')
+    parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='1')
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
-    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='32768') #32768
+    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='4096') #32768
     parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.05')
     parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10')
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
@@ -48,6 +49,7 @@ def parse_arguments():
     parser.add_argument("-df", "--dim_feedforward", dest='dim_feedforward', action='store', help="Enter the dimensions of the feedforward layer", metavar="DIMFF", default='32')
     parser.add_argument("-dp", "--dropout", dest='dropout', action='store', help="Enter the drop out decimal point", metavar="BZ", default='0.0')
     parser.add_argument("-u", "--units", dest='units', action='store', help="Enter the number of units in MLP hidden layer", metavar="BZ", default='16')
+    parser.add_argument("-wd", "--weight_decay", dest='weight_decay', action='store', help="Enter the weight decay", metavar="WD", default='0.2')
     
     # Run specifications
     parser.add_argument("-svemb", "--save_embeddings", dest='save_embeddings', action='store', help='Enter 1 if want to save embeddings', metavar='SVEMB', default='0')
@@ -78,7 +80,7 @@ if __name__ == '__main__':
     ### Set discoverable GPU cards
     if args.gpu_nums is None:
         print('No GPU number given, selecting GPU with least memory usage.')
-        args.gpu_nums = ','.join(select_gpu(1,verbose=True))
+        args.gpu_nums = ','.join(select_gpu(int(args.num_gpus_avail),verbose=True))
     # For GPU - Pytorch
     os.environ["CUDA_VISIBLE_DEVICES"]=args.gpu_nums #model will be trained on GPU X
     print('Using GPU: ',args.gpu_nums)
@@ -161,6 +163,7 @@ if __name__ == '__main__':
         'tune_flag': bool(int(args.tune_flag)),
         'units': int(args.units),
         'val_size': float(int(args.val_size) / 100),
+        'weight_decay': float(args.weight_decay), 
     }
 
 
@@ -171,12 +174,13 @@ if __name__ == '__main__':
     print(f'Test set top-1 accuracy {results_dict["metrics"]["acc_test"]}')
 
     # Plot losses and result curves
-    plot_training_curves(results_dict['data']['train_losses'], results_dict['data']['val_losses'],  results_dict['data']['val_accs'], os.path.join(args.path_res,args.fname_out_root))
-    plot_uniqueness(results_dict['data']['uniqueness_a'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_a.pdf'))
-    plot_uniqueness(results_dict['data']['uniqueness_b'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_b.pdf'))
-    if args.out_flag == 'clf':
-        plot_roc_curve(results_dict['data']['test_preds'], results_dict['data']['test_labels'], os.path.join(args.path_res,args.fname_root_out,'roc_curve.pdf'))
-        plot_precision_recall_curve(results_dict['data']['test_preds'], results_dict['data']['test_labels'], os.path.join(args.path_res,args.fname_root_out,'precision_recall_curve.pdf'))
+    if bool(int(args.tune_flag)) == False:
+        plot_training_curves(results_dict['data']['train_losses'], results_dict['data']['val_losses'],  results_dict['data']['val_accs'], os.path.join(args.path_res,args.fname_out_root))
+        plot_uniqueness(results_dict['data']['uniqueness_a'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_a.pdf'))
+        plot_uniqueness(results_dict['data']['uniqueness_b'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_b.pdf'))
+        if args.out_flag == 'clf':
+            plot_roc_curve(results_dict['data']['test_preds'], results_dict['data']['test_labels'], os.path.join(args.path_res,args.fname_root_out,'roc_curve.pdf'))
+            plot_precision_recall_curve(results_dict['data']['test_preds'], results_dict['data']['test_labels'], os.path.join(args.path_res,args.fname_root_out,'precision_recall_curve.pdf'))
 
     # Print hyperparameter configuration and results metrics
     print("Hyperparameter configuration and results metrics:")
