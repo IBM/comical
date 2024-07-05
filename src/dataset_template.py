@@ -1,4 +1,4 @@
-import os
+import os, math
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset
@@ -76,7 +76,7 @@ class dataset(Dataset):
         self.load_colname_mapping('IDP')
         if self.downstream_pred_task_flag:
             self.target_labels = self.load_target_labels(index_col)
-            self.load_covariates(index_col, covariates_names)
+            self.load_covariates(covariates_names, index_col)
 
     def match_modalities(self):
         self.matching_ids = reduce(np.intersect1d, (self.mod_a_idx, self.mod_b_idx, self.target_labels.index,self.covariates.index,self.pcs.index)) if self.downstream_pred_task_flag else np.intersect1d(self.mod_a_idx, self.mod_b_idx) 
@@ -121,7 +121,9 @@ class dataset(Dataset):
 
         snps_filt_pval = []
         for d in feats_a_map[feat_a_target_col].value_counts().index:
-            snps_filt_pval.append(feats_a_map.loc[feats_a_map.loc[feats_a_map[feat_a_target_col]==d]['P-value'].nsmallest(int(len(feats_a_map.loc[feats_a_map[feat_a_target_col]==d]['P-value'])*(top_n_per/100))).index])
+            # snps_filt_pval.append(feats_a_map.loc[feats_a_map.loc[feats_a_map[feat_a_target_col]==d]['P-value'].nsmallest(int(len(feats_a_map.loc[feats_a_map[feat_a_target_col]==d]['P-value'])*(top_n_per/100))).index])
+            # Updated the line above to make sure that at least 1 snp is selected. New version allows to select 1 snp if the number of snps matching theis less than 1
+            snps_filt_pval.append(feats_a_map.loc[feats_a_map.loc[feats_a_map[feat_a_target_col] == d, 'P-value'].nsmallest(max(1, int(len(feats_a_map.loc[feats_a_map[feat_a_target_col] == d, 'P-value']) * (top_n_per / 100)))).index])
         feats_a_map = pd.concat(snps_filt_pval).loc[:, [feat_a_index_col,feat_a_target_col]]
         feats_a_map = feats_a_map.explode(feat_a_target_col)
         matching_grouping = np.intersect1d(feats_b_map[feat_b_target_col],feats_a_map[feat_a_target_col])
@@ -222,7 +224,7 @@ class dataset(Dataset):
 
     def tensorize_data(self):
         if self.downstream_pred_task_flag:
-            self.mod_a = from_numpy(self.mod_a.values)
+            self.mod_a = from_numpy(self.mod_a.drop('eid', axis =1).values)
             self.target = from_numpy(self.target_labels.values)
             self.covariates = from_numpy(self.covariates.values)
             self.pcs = from_numpy(self.pcs.values)

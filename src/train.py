@@ -33,7 +33,7 @@ def train(config, data=None, checkpoint_dir=None):
     # Tensorboard set  up
     writer = SummaryWriter(config['tensorboard_log_path'])
     tune = config['tune']
-    tune = True
+    # tune = True
 
     # Call functions from dataset to get pair buckets for evaluation of model (accuracy calculation)
     if config['out_flag'] == 'pairs':
@@ -47,6 +47,11 @@ def train(config, data=None, checkpoint_dir=None):
     
     # Model and Hyperparams
     model = comical_new_emb(config) if config['out_flag']=='pairs' else mlp_only(config) if config['out_flag']=='mlp' else comical_new_emb_clasf(config)
+
+    # If pre-trained model is used, load the weights
+    # if config['out_flag'] == 'clf' or config['out_flag'] == 'reg':
+    #     config['pretrained_model_path'] = '/home/machad/fast/comical/ray_results/train_2024-06-05_10-25-07/train_89522_00000_0_batch_size=4096,d_model=64,dim_feedforward=64,lr=0.0033,warmup_steps=236.5525,weight_decay=0.0015_2024-06-05_10-26-02/checkpoint_000009/checkpoint.pt'
+    #     model.load_state_dict(torch.load(config['pretrained_model_path']))
     
     # Freeze encoders for pre-trained model
     if config['out_flag'] == 'clf' or config['out_flag'] == 'reg':
@@ -241,18 +246,18 @@ def train(config, data=None, checkpoint_dir=None):
                     )
                     print("Saving checkpoint to", tempdir)
                     ray.train.report(metrics={"loss": (total_val_loss.cpu().numpy() / val_steps)}, checkpoint=Checkpoint.from_directory(tempdir))
-            # else:
-            #     os.makedirs(checkpoint_dir, exist_ok=True)
-            #     # Save model and info per epoch
-            #     torch.save({
-            #         'epoch': epoch,
-            #         'model_state_dict': model.state_dict(),
-            #         'optimizer_state_dict': optimizer.state_dict(),
-            #         'loss': total_loss,
-            #         },  os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}.pt'))
-            #     val_losses.append(total_val_loss.item()/val_steps)
-            #     val_accs.append(val_acc)
-            #     writer.add_scalar("Loss/val", total_val_loss.item()/val_steps, epoch)
+            else:
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                # Save model and info per epoch
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': total_loss,
+                    },  os.path.join(checkpoint_dir,f'checkpoint_epoch_{epoch}.pt'))
+                val_losses.append(total_val_loss.item()/val_steps)
+                val_accs.append(val_acc)
+                writer.add_scalar("Loss/val", total_val_loss.item()/val_steps, epoch)
             print(f'Training loss= {sum_loss} at epoch {epoch}')
             print(f'Vaidation loss= {total_val_loss.item()/val_steps} at epoch {epoch}')
 
@@ -272,5 +277,6 @@ def train(config, data=None, checkpoint_dir=None):
         if config['plot_embeddings']:
             emb_plot(os.path.join(os.getcwd(),'results',config['fname_root_out']),embs)
 
-
+        if config['out_flag'] == 'clf':
+            uniqueness = None
         return train_losses, val_losses, val_accs, uniqueness

@@ -9,4 +9,7 @@ hyperparameter_search.sh
 top_snps_script.sh
 ray_results/*
 ray_tmp/*
+pairs_freqs_pvals_0.1.csv
+pairs_freqs_pvals_0.01.csv
+pairs_freqs_pvals_2.0.csv
 

@@ -68,7 +68,8 @@ def train_eval(paths, args, config = None):
             'subject_based_pred_flag':args['downstream_pred_task_flag'],
             'out_flag':args['out_flag'],
             'target':args['target'],
-            'warmup_steps' : 2000, # using 2000 as recommended in clip paper
+            'warmup_steps' : 2000, # using 2000 as recommended in clip paper, 
+            'num_classes': 2 if args['out_flag'] == 'clf' else 1,
         }
     ### Train model ###
     if args['tune_flag']:
@@ -80,16 +81,16 @@ def train_eval(paths, args, config = None):
             'test_index' : test_idx,
             'tune' : args['tune_flag'],
             ## Training hyperparms
-            "lr": tune.loguniform(1e-5, 1e-2), #0.0001
+            "lr": tune.loguniform(1e-5, 1e-2) if args['out_flag'] == 'pairs' else 0.0001, #0.0001
             'weight_decay': tune.loguniform(1e-3, 1e-1),
-            "batch_size" : tune.grid_search([4096,32768]),
+            "batch_size" : tune.grid_search([4096,32768]) if args['out_flag'] == 'pairs' else 1024,
             "epochs":args['epochs'],
             ## Model hyperparams
             'units': args['units'],
             'num_layers' : args['num_layers'],
-            'd_model' : tune.grid_search([64,128,256]), 
+            'd_model' : tune.grid_search([64,128,256]) if args['out_flag'] == 'pairs' else 64, 
             'nhead': args['nhead'],
-            'dim_feedforward' : tune.grid_search([64,128,256]),
+            'dim_feedforward' : tune.grid_search([64,128,256]) if args['out_flag'] == 'pairs' else 128,
             'dropout' : args['dropout'],
             'layer_norm_eps' : 0.000001,
             'activation' : 'gelu',
@@ -107,7 +108,8 @@ def train_eval(paths, args, config = None):
             'subject_based_pred_flag':args['downstream_pred_task_flag'],
             'out_flag':args['out_flag'],
             'target':args['target'],
-            'warmup_steps' : tune.loguniform(1e2, 1e4), # using 2000 as recommended in clip paper
+            'warmup_steps' : tune.loguniform(1e2, 1e4), # using 2000 as recommended in clip paper,
+            'num_classes': 2 if args['out_flag'] == 'clf' else 1,
         }
         scheduler = ASHAScheduler(
             max_t=10,
@@ -151,7 +153,7 @@ def train_eval(paths, args, config = None):
         train_losses, val_losses, val_accs, uniqueness = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
         # Select checkpoint with the lowest loss on validation set
         best_epoch = np.argmin(val_losses)
-        best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}')
+        best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
 
     ## Evaluate model ##
     # Evaluate on all data paritions - using best checkpointed model
@@ -175,8 +177,8 @@ def train_eval(paths, args, config = None):
             'val_accs':val_accs if args['tune_flag'] == False else None,
             'test_preds': [str(i) for i in extra_test['preds']],
             'test_labels': [str(i) for i in extra_test['target']],
-            'uniqueness_a' : uniqueness['seq_a_uniques'] if args['tune_flag'] == False else None, 
-            'uniqueness_b' : uniqueness['seq_b_uniques'] if args['tune_flag'] == False else None,
+            'uniqueness_a' : uniqueness['seq_a_uniques'] if args['tune_flag'] == False and uniqueness is not None else None, 
+            'uniqueness_b' : uniqueness['seq_b_uniques'] if args['tune_flag'] == False and uniqueness is not None else None,
         },
         'hyperparams':{
             'lr':config["lr"],

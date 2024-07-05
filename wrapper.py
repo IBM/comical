@@ -2,14 +2,15 @@ import os, argparse, time, json
 from src.train_eval import train_eval
 from src.utils import plot_training_curves, plot_roc_curve, plot_precision_recall_curve, select_gpu, plot_uniqueness
 from tabulate import tabulate
+import numpy as np
 
 # Parse args
 def msg(name=None):
     return ''' COMICAL example runs:
         Basic run to train COMICAL
-         >> python wrapper.py -fo <experimental run name> -gpu <gpu to run on> -out_flag <pairs> -sbp <0>
+         >> python wrapper.py -fo <experimental run name> -gpu <gpu to run on> -out_flag <pairs> -dwn <0>
         Example run for clasf prediction using frozen encoders
-        >> python wrapper.py -fo comical_PD -gpu 7 -target PD -out_flag clf -sbp 1 -lr 0.001
+        >> python wrapper.py -fo comical_PD -gpu 7 -target PD -out_flag clf -dwn 1 -lr 0.001
         '''
 
 def parse_arguments():
@@ -18,7 +19,7 @@ def parse_arguments():
     parser.add_argument("-ps", "--path_seq", dest='path_seq', action='store', help="Enter path for SNP sequences file", metavar="PS", default=os.path.join(os.getcwd(),'data','snp-encodings-from-vcf.csv'))
     parser.add_argument("-pi", "--path_idp", dest='path_idp', action='store', help="Enter path for IDPs file", metavar="PI", default=os.path.join(os.getcwd(),'data','T1_struct_brainMRI_IDPs.csv'))
     parser.add_argument("-pm", "--path_mod_b_map", dest='path_mod_b_map', action='store', help="Enter path for Modality B mapping file (optional)", metavar="PM", default=os.path.join(os.getcwd(),'data','T1mri.csv'))
-    parser.add_argument("-pt", "--path_target_labels", dest='path_target_labels', action='store', help="Enter path for subject labels file", metavar="PT", default=os.path.join(os.getcwd(),'data','neuroDx.csv'))
+    parser.add_argument("-pt", "--path_target_labels", dest='path_target_labels', action='store', help="Enter path for subject labels file", metavar="PT", default=os.path.join(os.getcwd(),'data','neuroDx_wPRS.csv'))
     parser.add_argument("-cov", "--path_covariates", dest='path_covariates', action='store', help="Enter path for covariates file", metavar="COV", default=os.path.join(os.getcwd(),'data','neuroDx_geneticPCs.csv'))
     parser.add_argument("-pmac", "--path_mod_a2group_map", dest='path_mod_a2group_map', action='store', help="Enter path for Modality A to latent grouping mapping file", metavar="PMAC", default=os.path.join(os.getcwd(),'data','SNPs_and_disease_mapping_with_pvalues.csv'))
     parser.add_argument("-pmbc", "--path_mod_b2group_map", dest='path_mod_b2group_map', action='store', help="Enter path for Modality B to latent grouping mapping file", metavar="PMBC", default=os.path.join(os.getcwd(),'data','IDPs_and_disease_mapping.csv'))
@@ -37,12 +38,12 @@ def parse_arguments():
     parser.add_argument("-vsz", "--val_sz", dest='val_size', action='store', help='Enter percentage of data used for validation data split (eg. 20)', metavar='VALSZ', default='20')
     parser.add_argument("-tsz", "--test_sz", dest='test_size', action='store', help='Enter percentage of data used for test data split (eg. 10)', default='10')
     parser.add_argument("-gpu", "--gpu_nums", dest='gpu_nums', action='store', help="Enter the gpus to use", metavar="GPU")
-    parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='6')
-    parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='1')
+    parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='2')
+    parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='0')
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
     parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='4096') #32768
     parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.05')
-    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10')
+    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='2') # 10
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
     parser.add_argument("-dm", "--d_model", dest='d_model', action='store', help="Enter the model dimensions", metavar="DIMS", default='64')
     parser.add_argument("-nh", "--nhead", dest='nhead', action='store', help="Enter the number of heads on MHA", metavar="MHA", default='4')
@@ -54,18 +55,18 @@ def parse_arguments():
     # Run specifications
     parser.add_argument("-svemb", "--save_embeddings", dest='save_embeddings', action='store', help='Enter 1 if want to save embeddings', metavar='SVEMB', default='0')
     parser.add_argument("-pltemb", "--plot_embeddings", dest='plot_embeddings', action='store', help='Enter 1 if want to plot embeddings, note this process can take a long time and a lot of memory.', metavar='PLTEMB', default='0')
-    parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use. Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='0.5')
+    parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use (e.g. 10%). Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='0.1') # 0.5
     parser.add_argument("-resume", "--resume_from_batch", dest='resume_from_batch', action='store', help='Enter 1 if want to resume training from last batch checkpoint. Note: default = 0', metavar='RESUME', default='0')
     parser.add_argument("-ckpt_name", "--ckpt_name", dest='ckpt_name', action='store', help='Enter checkpoint name from batch to resume training.', metavar='ckpt_name', default='None')
-    parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='0')
-    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or pairs for training encoders for pair association.', metavar='OUTFLAG', default='pairs')
-    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='PD')
+    parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='1')
+    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or pairs for training encoders for pair association.', metavar='OUTFLAG', default='reg') #pairs
+    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='FAKE_PRS')
     parser.add_argument("-idx_col", "--index_col", dest='index_col', action='store', help='Enter the index column for the modality a and b data files.', metavar='IDXCOL', default='eid')
     parser.add_argument("-feat_a_idx_col", "--feat_a_index_col", dest='feat_a_index_col', action='store', help='Enter the index column for the modality a data file.', metavar='FEATAIDXCOL', default='SNPs')
     parser.add_argument("-feat_b_idx_col", "--feat_b_index_col", dest='feat_b_index_col', action='store', help='Enter the index column for the modality b data file.', metavar='FEATBIDXCOL', default='IDPs')
     parser.add_argument("-feat_a_target_col", "--feat_a_target_col", dest='feat_a_target_col', action='store', help='Enter the target column for the modality a data file.', metavar='FEATATARGETCOL', default='Disease')
     parser.add_argument("-feat_b_target_col", "--feat_b_target_col", dest='feat_b_target_col', action='store', help='Enter the target column for the modality b data file.', metavar='FEATBTARGETCOL', default='Disease')
-    parser.add_argument("-cov_names", "--coveriate_names", dest='coveriate_names', action='store', help='Enter the names of the covariates to use.', metavar='COVNAME', default='Age, Sex')
+    parser.add_argument("-cov_names", "--coveriate_names", dest='coveriate_names', action='store', help='Enter the names of the covariates to use. (no spaces between covariates and comma separated)', metavar='COVNAME', default='Age,Sex')
     parser.add_argument("-cbp", "--count_bins", dest='count_bins', action='store', help='Enter the number of bins to use for binning in the PLE tokenization.', metavar='CBP', default='64')
 
     args = parser.parse_args()
@@ -135,7 +136,7 @@ if __name__ == '__main__':
         'batch_size': int(args.batch_size),
         'ckpt_name': args.ckpt_name,
         'count_bins': int(args.count_bins),
-        'covariates_names': list(args.coveriate_names),
+        'covariates_names': args.coveriate_names.split(','),
         'dim_feedforward': int(args.dim_feedforward),
         'target': args.target,
         'd_model': int(args.d_model),
@@ -176,11 +177,13 @@ if __name__ == '__main__':
     # Plot losses and result curves
     if bool(int(args.tune_flag)) == False:
         plot_training_curves(results_dict['data']['train_losses'], results_dict['data']['val_losses'],  results_dict['data']['val_accs'], os.path.join(args.path_res,args.fname_out_root))
-        plot_uniqueness(results_dict['data']['uniqueness_a'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_a.pdf'))
-        plot_uniqueness(results_dict['data']['uniqueness_b'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_b.pdf'))
-        if args.out_flag == 'clf':
-            plot_roc_curve(results_dict['data']['test_preds'], results_dict['data']['test_labels'], os.path.join(args.path_res,args.fname_root_out,'roc_curve.pdf'))
-            plot_precision_recall_curve(results_dict['data']['test_preds'], results_dict['data']['test_labels'], os.path.join(args.path_res,args.fname_root_out,'precision_recall_curve.pdf'))
+        if args.out_flag == 'pairs':
+            plot_uniqueness(results_dict['data']['uniqueness_a'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_a.pdf'))
+            plot_uniqueness(results_dict['data']['uniqueness_b'], os.path.join(args.path_res,args.fname_out_root,'uniqueness_b.pdf'))
+        # FIXME: plotting currently externally to overlay all targets
+        # if args.out_flag == 'clf':
+        #     plot_roc_curve(np.asarray(results_dict['data']['test_preds']).astype('float'), np.asarray(results_dict['data']['test_labels']).astype('float').astype('int'), os.path.join(args.path_res,args.fname_out_root,'roc_curve.pdf'))
+        #     plot_precision_recall_curve(np.asarray(results_dict['data']['test_preds']).astype('float'), np.asarray(results_dict['data']['test_labels']).astype('float').astype('int'), os.path.join(args.path_res,args.fname_out_root,'precision_recall_curve.pdf'))
 
     # Print hyperparameter configuration and results metrics
     print("Hyperparameter configuration and results metrics:")

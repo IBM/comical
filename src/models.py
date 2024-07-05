@@ -50,6 +50,7 @@ class comical_new_emb_clasf(nn.Module):
         self.dict_size_num_snps = config['num_snps']
         self.dict_size_num_ipds = config['num_idps']
         self.idp_tok_dims = config['idp_tok_dims']
+        self.num_classes = config['num_classes']
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -82,7 +83,7 @@ class comical_new_emb_clasf(nn.Module):
 
         # MLP
         self.h1 = nn.Linear(self.d_model*2+42,self.d_model)
-        self.proj_down = nn.Linear(self.d_model,2)
+        self.proj_down = nn.Linear(self.d_model,self.num_classes)
     
     # Genetic (modality 1 encoder)
     def encode_gen(self, text, snp_id, save_emb):
@@ -106,6 +107,27 @@ class comical_new_emb_clasf(nn.Module):
             return x, emb
         else:
             return x
+    # def encode_gen(self, text, snp_id, save_emb):
+    #     x = torch.concat((self.gen_emb(text),self.snp_id_emb(snp_id)),dim=1)
+    #     emb = x.detach().cpu().numpy()
+    #     x = torch.nan_to_num(x,0) # TODO: this is a patch fix to get rid of nans
+    #     x = torch.unsqueeze(x,1)
+
+    #     # x = x + self.positional_embedding # positional embedding replaced by snp id-based embedding 
+    #     x = x.permute(1, 0, 2)  # NLD -> LND
+    #     x = self.gen_transformer_encoder(x)
+    #     x = torch.nan_to_num(x,0) # TODO: this is a patch fix to get rid of nans
+    #     x = x.permute(1, 0, 2)  # LND -> NLD
+    #     x = self.ln_final(x)
+
+    #     # take features from the eot embedding (eot_token is the highest number in each sequence)
+    #     x = x[torch.arange(x.shape[0]), 0] @ self.seq_projection
+    #     assert x.isnan().sum().cpu().item() == 0 # Throw error if all values have become nan, (i.e. meaning model fail to converge)
+        
+    #     if save_emb:
+    #         return x, emb
+    #     else:
+    #         return x
 
     # IDP (modality 2 encoder)
     def encode_idp(self, idp,idp_id,save_emb):
@@ -128,6 +150,27 @@ class comical_new_emb_clasf(nn.Module):
             return x, emb
         else:
             return x
+        
+    # def encode_idp(self, idp,idp_id,save_emb):
+    #     x = torch.concat((self.idp_emb(idp),self.idp_id_emb(idp_id)),dim=1)
+    #     emb = x.detach().cpu().numpy()
+    #     x = torch.nan_to_num(x,0) # TODO: this is a patch fix to get rid of nans
+    #     x = torch.unsqueeze(x,1)
+
+    #     # x = x + self.positional_embedding # positional embedding replaced by snp id-based embedding
+    #     x = x.permute(1, 0, 2)  # NLD -> LND
+    #     x = self.idp_transformer_encoder(x)
+    #     x = x.permute(1, 0, 2)  # LND -> NLD
+    #     x = self.ln_final(x)
+
+    #     # take features from the eot embedding (eot_token is the highest number in each sequence)
+    #     x = x[torch.arange(x.shape[0]), 0] @ self.idp_projection
+    #     assert x.isnan().sum().cpu().item() == 0 # Throw error if all values have become nan, (i.e. meaning model fail to converge)
+        
+    #     if save_emb:
+    #         return x, emb
+    #     else:
+    #         return x
         
     def mlp(self,x):
             self.dropout = nn.Dropout(0.2)

@@ -114,30 +114,31 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
     total_loss /= (batch_idx+1)
     acc /= (batch_idx+1)
 
-    max_length = max(len(lst) for lst in master_pair_freq_dict.values())
+    if config['out_flag'] == 'pairs':
+        max_length = max(len(lst) for lst in master_pair_freq_dict.values())
 
-    # Fill shorter lists with zeros
-    for key, value in master_pair_freq_dict.items():
-        if len(value) < max_length:
-            master_pair_freq_dict[key] += [0] * (max_length - len(value))
+        # Fill shorter lists with zeros
+        for key, value in master_pair_freq_dict.items():
+            if len(value) < max_length:
+                master_pair_freq_dict[key] += [0] * (max_length - len(value))
 
-    master_pair_freq_pd = pd.DataFrame.from_dict(master_pair_freq_dict, orient='index')
-    
-    chi2_stat, p_value = chisquare(f_obs = master_pair_freq_pd.values, 
-                                   axis = 1, ddof = master_pair_freq_pd.shape[0] - 1)
+        master_pair_freq_pd = pd.DataFrame.from_dict(master_pair_freq_dict, orient='index')
+        
+        chi2_stat, p_value = chisquare(f_obs = master_pair_freq_pd.values, 
+                                    axis = 1, ddof = master_pair_freq_pd.shape[0] - 1)
 
-    adj_chi2_stat = (chi2_stat / master_pair_freq_pd.shape[0]).reshape((master_pair_freq_pd.shape[0],1))
-    
-    adj_p_value = np.float64(stats.f.sf(adj_chi2_stat, dfn = 1, dfd = master_pair_freq_pd.shape[0] - 1)[:,0])
+        adj_chi2_stat = (chi2_stat / master_pair_freq_pd.shape[0]).reshape((master_pair_freq_pd.shape[0],1))
+        
+        adj_p_value = np.float64(stats.f.sf(adj_chi2_stat, dfn = 1, dfd = master_pair_freq_pd.shape[0] - 1)[:,0])
 
-    master_pair_freq_pd = master_pair_freq_pd.reset_index() 
-    master_pair_freq_pd['chi'] = chi2_stat
-    master_pair_freq_pd['p'] = p_value
-    master_pair_freq_pd['adj-chi'] = adj_chi2_stat
-    master_pair_freq_pd['adj-p'] = adj_p_value
-    master_pair_freq_pd.rename(columns={'index': 'pair', 'values': 'freq'}, inplace=True)
+        master_pair_freq_pd = master_pair_freq_pd.reset_index() 
+        master_pair_freq_pd['chi'] = chi2_stat
+        master_pair_freq_pd['p'] = p_value
+        master_pair_freq_pd['adj-chi'] = adj_chi2_stat
+        master_pair_freq_pd['adj-p'] = adj_p_value
+        master_pair_freq_pd.rename(columns={'index': 'pair', 'values': 'freq'}, inplace=True)
 
-    master_pair_freq_pd.to_csv('pairs_freqs_pvals_'+str(args['top_n_perc'])+'.csv', index=False, mode='w')
+        master_pair_freq_pd.to_csv('pairs_freqs_pvals_'+str(args['top_n_perc'])+'.csv', index=False, mode='w')
 
     return total_loss.item(), acc, data_auc_plot 
 
