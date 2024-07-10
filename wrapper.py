@@ -1,4 +1,4 @@
-import os, argparse, time, json
+import os, argparse, time, json, pickle
 from src.train_eval import train_eval
 from src.utils import plot_training_curves, plot_roc_curve, plot_precision_recall_curve, select_gpu, plot_uniqueness
 from tabulate import tabulate
@@ -202,5 +202,9 @@ if __name__ == '__main__':
     with open(os.path.join(args.path_res,args.fname_out_root,'results_and_config_out.txt'), "w") as outfile:
         outfile.write(table)
     print(table)
+
+   # Save results (data - deciles) as pickle file
+    with open(os.path.join(args.path_res,args.fname_out_root,'results_data_and_config_out.pickle'), 'wb') as outfile:
+        pickle.dump(results_dict, outfile)
 
     print("--- Total run time in %s seconds ---" % (time.time() - begin_time))
