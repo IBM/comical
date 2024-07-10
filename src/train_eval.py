@@ -159,7 +159,7 @@ def train_eval(paths, args, config = None):
     # Evaluate on all data paritions - using best checkpointed model
     # loss_train, acc_train, _ = test_model(config, data, train_idx, best_checkpoint_path)
     # loss_val, acc_val, _ = test_model(config, data, val_idx, best_checkpoint_path)
-    loss_test, acc_test, extra_test = test_model(config, args ,data, test_idx, best_checkpoint_path)
+    loss_test, acc_test, extra_test, softmax_idp, softmax_snp = test_model(config, args ,data, test_idx, best_checkpoint_path)
 
     # Return dictionary with results, data info
     results_ret = {
@@ -179,6 +179,8 @@ def train_eval(paths, args, config = None):
             'test_labels': [str(i) for i in extra_test['target']],
             'uniqueness_a' : uniqueness['seq_a_uniques'] if args['tune_flag'] == False and uniqueness is not None else None, 
             'uniqueness_b' : uniqueness['seq_b_uniques'] if args['tune_flag'] == False and uniqueness is not None else None,
+            'softmax_idp' : softmax_idp,
+            'softmax_snp' : softmax_snp,
         },
         'hyperparams':{
             'lr':config["lr"],
