@@ -70,7 +70,8 @@ def train_eval(paths, args, config = None):
             'target':args['target'],
             'warmup_steps' : 2000, # using 2000 as recommended in clip paper, 
             'num_classes': 2 if args['out_flag'] == 'clf' else 1,
-            'decile':args['decile']
+            'decile':args['decile'],
+            'early_stopper_flag':args['early_stopper_flag'],
         }
     ### Train model ###
     if args['tune_flag']:
@@ -111,7 +112,8 @@ def train_eval(paths, args, config = None):
             'target':args['target'],
             'warmup_steps' : tune.loguniform(1e2, 1e4), # using 2000 as recommended in clip paper,
             'num_classes': 2 if args['out_flag'] == 'clf' else 1,
-            'decile':args['decile']
+            'decile':args['decile'],
+            'early_stopper_flag':args['early_stopper_flag'],
         }
         scheduler = ASHAScheduler(
             max_t=10,

@@ -122,8 +122,9 @@ def train(config, data=None, checkpoint_dir=None):
     #     model, optimizer, start_batch = load_ckp(os.path.join(checkpoint_dir,config['last_checkpoint_path']), model, optimizer)
     # else:
     #     start_batch = 0
-        
-    early_stopper = EarlyStopper(patience=10, min_delta=0.00001)
+
+    if config['early_stopper_flag']:
+        early_stopper = EarlyStopper(patience=10, min_delta=0.00001)
 
     train_losses = []
     val_losses = []

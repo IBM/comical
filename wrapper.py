@@ -71,6 +71,7 @@ def parse_arguments():
     parser.add_argument("-cov_names", "--coveriate_names", dest='coveriate_names', action='store', help='Enter the names of the covariates to use. (no spaces between covariates and comma separated)', metavar='COVNAME', default='Age,Sex')
     parser.add_argument("-cbp", "--count_bins", dest='count_bins', action='store', help='Enter the number of bins to use for binning in the PLE tokenization.', metavar='CBP', default='64')
     parser.add_argument("-dec", "--decile", dest='decile', action='store', help='Enter the number of deciles to use for decile accuracy calculation, where 9 is the most strict, 1 is the least. Enter 0 for no decile accuracy calculation', metavar='DEC', default='0.5')
+    parser.add_argument("-esf", "--early_stopper_flag", dest='early_stopper_flag', action='store', help='Enter 1 if want to use early stopping, 0 if not.', metavar='ESF', default='1')
 
     args = parser.parse_args()
 
@@ -145,6 +146,7 @@ if __name__ == '__main__':
         'd_model': int(args.d_model),
         'decile': float(args.decile),
         'dropout': float(args.dropout),
+        'early_stopper_flag':bool(int(args.early_stopper_flag)),
         'epochs': int(args.epochs),
         'feat_a_index_col':args.feat_a_index_col,
         'feat_b_index_col':args.feat_b_index_col,
