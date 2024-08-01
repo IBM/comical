@@ -143,7 +143,7 @@ if __name__ == '__main__':
         'dim_feedforward': int(args.dim_feedforward),
         'target': args.target,
         'd_model': int(args.d_model),
-        'decile': int(args.decile),
+        'decile': float(args.decile),
         'dropout': float(args.dropout),
         'epochs': int(args.epochs),
         'feat_a_index_col':args.feat_a_index_col,
