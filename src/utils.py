@@ -108,6 +108,51 @@ def calculate_acc(seq,snp_id,idp,idp_id, probs_seq, probs_idp, dd_idp, dd, idp_i
     acc = correct / len(probs_seq) /2 
     return acc
 
+def calculate_decile_acc(seq, snp_id, idp, idp_id, probs_seq, probs_idp, dd_idp, dd, idp_id_map, snp_id_map, decile):
+    # global master_pair_freq_dict
+    # pairs = []
+    acc = 0.0
+    total_count = len(probs_seq) + len(probs_idp)
+    
+    for i, prob_seq in enumerate(probs_seq):
+        # Calculate the top decile of the predicted values
+        top_decile_indices = np.where(pd.qcut(prob_seq, 10, labels=False, duplicates='drop') == decile)[0] #top decile is 9
+        top_decile_idps = {idp_id_map[idp_id[idx]] for idx in top_decile_indices}
+
+        # Obtain the true associated values for the SNP
+        true_values = set(dd[snp_id_map[snp_id[i]]][0])
+
+        # Calculate the overlap
+        overlap = len(true_values.intersection(top_decile_idps))
+        acc += overlap / len(true_values) if true_values else 0
+
+        # pairs.append( (dd_idp[idp_id_map[idp_id[i]]][0][0], idp_id_map[idp_id[j]]) )
+
+    for i, prob_idp in enumerate(probs_idp):
+        # Calculate the top decile of the predicted values
+        top_decile_indices = np.where(pd.qcut(prob_idp, 10, labels=False, duplicates='drop') == decile)[0]
+        top_decile_snps = {snp_id_map[snp_id[idx]] for idx in top_decile_indices}
+
+        # Obtain the true associated values for the IDP
+        true_values = set(dd_idp[idp_id_map[idp_id[i]]][0])
+
+        # Calculate the overlap
+        overlap = len(true_values.intersection(top_decile_snps))
+        acc += overlap / len(true_values) if true_values else 0
+
+        # pairs.append( (snp_id_map[snp_id[j]], dd[snp_id_map[snp_id[i]]][0][0]) )
+
+    # counter = dict(Counter(pairs))
+
+    # for key, value in counter.items():
+    #     if key not in master_pair_freq_dict:
+    #         master_pair_freq_dict[key] = []
+    #         master_pair_freq_dict[key].append(value)
+    #     else:
+    #         master_pair_freq_dict[key].append(value)
+
+    return acc / total_count / 2
+
 ### Training utils ###
 # Obtained from https://stackoverflow.com/questions/71998978/early-stopping-in-pytorch
 class EarlyStopper:

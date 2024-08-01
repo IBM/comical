@@ -22,7 +22,7 @@ import tempfile
 
 from torch.utils.tensorboard import SummaryWriter
 from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
-from src.utils import EarlyStopper, calculate_acc
+from src.utils import EarlyStopper, calculate_acc, calculate_decile_acc
 from sklearn.utils.class_weight import compute_class_weight
 from tabulate import tabulate
 
@@ -214,14 +214,18 @@ def train(config, data=None, checkpoint_dir=None):
                     # Compute softmax probs to use for accuracy calculation
                     probs_seq_a = np.argmax(logits_seq_a.softmax(dim=-1).cpu().numpy(), axis = 1)
                     probs_seq_b = np.argmax(logits_seq_b.softmax(dim=-1).cpu().numpy(), axis = 1)
+                    # New accuracy calculation - overlap between top 10% of predicted values and true values rather than just the top predicted value
+                    # probs_seq_a = logits_seq_a.softmax(dim=-1).cpu().numpy()
+                    # probs_seq_b = logits_seq_b.softmax(dim=-1).cpu().numpy()
                     # Calculte accuracy per batch
                     val_acc += calculate_acc(seq_a.cpu().numpy(),input_a_id.cpu().numpy(),seq_b.cpu().numpy(),input_b_id.cpu().numpy(), probs_seq_a, probs_seq_b,dd_seq_b, dd_seq_a, seq_b_id_map, seq_a_id_map)
+                    # val_acc += calculate_decile_acc(seq_a.cpu().numpy(),input_a_id.cpu().numpy(),seq_b.cpu().numpy(),input_b_id.cpu().numpy(), probs_seq_a, probs_seq_b,dd_seq_b, dd_seq_a, seq_b_id_map, seq_a_id_map, config['decile'])
                     # Calculate distribution of pairs for debugging every 10% of the validation set
                     if batch_idx % int(len(val_loader)/10) == 0:
                         seq_a_uniques, seq_a_counts = np.unique(probs_seq_a, return_counts=True)
                         seq_b_uniques, seq_b_counts = np.unique(probs_seq_b, return_counts=True)
-                        print(tabulate(zip(seq_a_uniques,seq_a_counts), headers=['seq_a_uniques','seq_a_counts']))
-                        print(tabulate(zip(seq_b_uniques,seq_b_counts), headers=['seq_b_uniques','seq_b_counts']))
+                        # print(tabulate(zip(seq_a_uniques,seq_a_counts), headers=['seq_a_uniques','seq_a_counts']))
+                        # print(tabulate(zip(seq_b_uniques,seq_b_counts), headers=['seq_b_uniques','seq_b_counts']))
                         uniqueness['seq_a_uniques'].extend(seq_a_uniques)
                         uniqueness['seq_b_uniques'].extend(seq_b_uniques)
                         

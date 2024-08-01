@@ -70,6 +70,7 @@ def train_eval(paths, args, config = None):
             'target':args['target'],
             'warmup_steps' : 2000, # using 2000 as recommended in clip paper, 
             'num_classes': 2 if args['out_flag'] == 'clf' else 1,
+            'decile':args['decile']
         }
     ### Train model ###
     if args['tune_flag']:
@@ -81,7 +82,7 @@ def train_eval(paths, args, config = None):
             'test_index' : test_idx,
             'tune' : args['tune_flag'],
             ## Training hyperparms
-            "lr": tune.loguniform(1e-5, 1e-2) if args['out_flag'] == 'pairs' else 0.0001, #0.0001
+            "lr": tune.loguniform(1e-5, 1e-2) ,#if args['out_flag'] == 'pairs' else 0.0001, #0.0001
             'weight_decay': tune.loguniform(1e-3, 1e-1),
             "batch_size" : tune.grid_search([4096,32768]) if args['out_flag'] == 'pairs' else 1024,
             "epochs":args['epochs'],
@@ -110,6 +111,7 @@ def train_eval(paths, args, config = None):
             'target':args['target'],
             'warmup_steps' : tune.loguniform(1e2, 1e4), # using 2000 as recommended in clip paper,
             'num_classes': 2 if args['out_flag'] == 'clf' else 1,
+            'decile':args['decile']
         }
         scheduler = ASHAScheduler(
             max_t=10,

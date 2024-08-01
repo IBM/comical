@@ -95,15 +95,19 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
 
             if config['out_flag'] == 'pairs':
                 # Compute softmax probs to use for accuracy calculation
-                # probs_seq = np.argmax(logits_seq.softmax(dim=-1).cpu().numpy(), axis = 1)
-                # probs_idp = np.argmax(logits_idp.softmax(dim=-1).cpu().numpy(), axis = 1)
-                # New accuracy calculation - overlap between top 10% of predicted values and true values rather than just the top predicted value
-                probs_seq = logits_seq.softmax(dim=-1).cpu().numpy()
-                probs_idp = logits_idp.softmax(dim=-1).cpu().numpy()
+                if config['decile'] == 0:
+                    probs_seq = np.argmax(logits_seq.softmax(dim=-1).cpu().numpy(), axis = 1)
+                    probs_idp = np.argmax(logits_idp.softmax(dim=-1).cpu().numpy(), axis = 1)
+                else:
+                    # New accuracy calculation - overlap between top 10% of predicted values and true values rather than just the top predicted value
+                    probs_seq = logits_seq.softmax(dim=-1).cpu().numpy()
+                    probs_idp = logits_idp.softmax(dim=-1).cpu().numpy()
                 
                 # Calculte accuracy per batch
-                # acc += calculate_acc(seq.cpu().numpy(),snp_id.cpu().numpy(),idp.cpu().numpy(),idp_id.cpu().numpy(), probs_seq, probs_idp,dd_idp, dd, idp_id_map, snp_id_map)
-                acc += calculate_decile_acc(seq.cpu().numpy(),snp_id.cpu().numpy(),idp.cpu().numpy(),idp_id.cpu().numpy(), probs_seq, probs_idp,dd_idp, dd, idp_id_map, snp_id_map)
+                if config['decile'] == 0:
+                    acc += calculate_acc(seq.cpu().numpy(),snp_id.cpu().numpy(),idp.cpu().numpy(),idp_id.cpu().numpy(), probs_seq, probs_idp,dd_idp, dd, idp_id_map, snp_id_map)
+                else:
+                    acc += calculate_decile_acc(seq.cpu().numpy(),snp_id.cpu().numpy(),idp.cpu().numpy(),idp_id.cpu().numpy(), probs_seq, probs_idp,dd_idp, dd, idp_id_map, snp_id_map, config['decile'])
                 # Save softmaxed logits for later analysis
                 soft_logits_idp_l.extend(probs_idp) 
                 soft_logits_seq_l.extend(probs_seq)
@@ -177,7 +181,7 @@ def calculate_acc(seq,snp_id,idp,idp_id, probs_seq, probs_idp, dd_idp, dd, idp_i
     acc = correct / len(probs_seq) /2 
     return acc
 
-def calculate_decile_acc(seq, snp_id, idp, idp_id, probs_seq, probs_idp, dd_idp, dd, idp_id_map, snp_id_map):
+def calculate_decile_acc(seq, snp_id, idp, idp_id, probs_seq, probs_idp, dd_idp, dd, idp_id_map, snp_id_map, decile):
     # global master_pair_freq_dict
     # pairs = []
     acc = 0.0
@@ -185,7 +189,7 @@ def calculate_decile_acc(seq, snp_id, idp, idp_id, probs_seq, probs_idp, dd_idp,
     
     for i, prob_seq in enumerate(probs_seq):
         # Calculate the top decile of the predicted values
-        top_decile_indices = np.where(pd.qcut(prob_seq, 10, labels=False, duplicates='drop') == 9)[0]
+        top_decile_indices = np.where(pd.qcut(prob_seq, 10, labels=False, duplicates='drop') == decile)[0] #top decile is 9, include all = 1 
         top_decile_idps = {idp_id_map[idp_id[idx]] for idx in top_decile_indices}
 
         # Obtain the true associated values for the SNP
@@ -199,7 +203,7 @@ def calculate_decile_acc(seq, snp_id, idp, idp_id, probs_seq, probs_idp, dd_idp,
 
     for i, prob_idp in enumerate(probs_idp):
         # Calculate the top decile of the predicted values
-        top_decile_indices = np.where(pd.qcut(prob_idp, 10, labels=False, duplicates='drop') == 9)[0]
+        top_decile_indices = np.where(pd.qcut(prob_idp, 10, labels=False, duplicates='drop') == decile)[0]
         top_decile_snps = {snp_id_map[snp_id[idx]] for idx in top_decile_indices}
 
         # Obtain the true associated values for the IDP

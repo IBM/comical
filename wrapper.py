@@ -11,6 +11,8 @@ def msg(name=None):
          >> python wrapper.py -fo <experimental run name> -gpu <gpu to run on> -out_flag <pairs> -dwn <0>
         Example run for clasf prediction using frozen encoders
         >> python wrapper.py -fo comical_PD -gpu 7 -target PD -out_flag clf -dwn 1 -lr 0.001
+        Example run with hyperparameter tuning
+        python wrapper.py -fo comical_top_1_tuned -tune 1 -top_n_perc 1 -ngpu 4
         '''
 
 def parse_arguments():
@@ -38,12 +40,12 @@ def parse_arguments():
     parser.add_argument("-vsz", "--val_sz", dest='val_size', action='store', help='Enter percentage of data used for validation data split (eg. 20)', metavar='VALSZ', default='20')
     parser.add_argument("-tsz", "--test_sz", dest='test_size', action='store', help='Enter percentage of data used for test data split (eg. 10)', default='10')
     parser.add_argument("-gpu", "--gpu_nums", dest='gpu_nums', action='store', help="Enter the gpus to use", metavar="GPU")
-    parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='4')
-    parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='1')
+    parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='1')
+    parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='0')
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
     parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='32768') #32768
-    parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.05')
-    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10') # 10
+    parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.001') #0.05
+    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='50') # 10
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
     parser.add_argument("-dm", "--d_model", dest='d_model', action='store', help="Enter the model dimensions", metavar="DIMS", default='64')
     parser.add_argument("-nh", "--nhead", dest='nhead', action='store', help="Enter the number of heads on MHA", metavar="MHA", default='4')
@@ -68,6 +70,7 @@ def parse_arguments():
     parser.add_argument("-feat_b_target_col", "--feat_b_target_col", dest='feat_b_target_col', action='store', help='Enter the target column for the modality b data file.', metavar='FEATBTARGETCOL', default='Disease')
     parser.add_argument("-cov_names", "--coveriate_names", dest='coveriate_names', action='store', help='Enter the names of the covariates to use. (no spaces between covariates and comma separated)', metavar='COVNAME', default='Age,Sex')
     parser.add_argument("-cbp", "--count_bins", dest='count_bins', action='store', help='Enter the number of bins to use for binning in the PLE tokenization.', metavar='CBP', default='64')
+    parser.add_argument("-dec", "--decile", dest='decile', action='store', help='Enter the number of deciles to use for decile accuracy calculation, where 9 is the most strict, 1 is the least. Enter 0 for no decile accuracy calculation', metavar='DEC', default='0.5')
 
     args = parser.parse_args()
 
@@ -140,6 +143,7 @@ if __name__ == '__main__':
         'dim_feedforward': int(args.dim_feedforward),
         'target': args.target,
         'd_model': int(args.d_model),
+        'decile': int(args.decile),
         'dropout': float(args.dropout),
         'epochs': int(args.epochs),
         'feat_a_index_col':args.feat_a_index_col,
@@ -164,7 +168,7 @@ if __name__ == '__main__':
         'tune_flag': bool(int(args.tune_flag)),
         'units': int(args.units),
         'val_size': float(int(args.val_size) / 100),
-        'weight_decay': float(args.weight_decay), 
+        'weight_decay': float(args.weight_decay),
     }
 
 
