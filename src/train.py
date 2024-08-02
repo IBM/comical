@@ -267,9 +267,10 @@ def train(config, data=None, checkpoint_dir=None):
             print(f'Vaidation loss= {total_val_loss.item()/val_steps} at epoch {epoch}')
 
         # Early stopping
-        if early_stopper.early_stop(total_val_loss):
-            print("Early stopping")
-            break
+        if config['early_stopper_flag']:
+            if early_stopper.early_stop(total_val_loss):
+                print("Early stopping")
+                break
     print("Finished Training")
     if tune == False:
         # Clear tensorboard variables
