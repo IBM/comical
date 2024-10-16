@@ -27,6 +27,7 @@ def parse_arguments():
     parser.add_argument("-pmbc", "--path_mod_b2group_map", dest='path_mod_b2group_map', action='store', help="Enter path for Modality B to latent grouping mapping file", metavar="PMBC", default=os.path.join(os.getcwd(),'data','IDPs_and_disease_mapping.csv'))
     parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS") #pairs_top_n_0.5
     parser.add_argument("-d", "--path_data", dest='path_data', action='store', help="Enter path for data directory, default is ./data", metavar="D", default=os.path.join(os.getcwd(),'data'))
+    parser.add_argument("-p_sx", "--path_sub_idx", dest='path_sub_idx', action='store', help="Enter the path for the subject labels file.", metavar='SUBIDX', default=os.path.join(os.getcwd(),'data','positive_idx.csv'))
 
     # Results path
     parser.add_argument("-pr", "--path_res", dest='path_res', action='store', help="Output folder", metavar="PR", default=os.path.join(os.getcwd(),'results')) ##
@@ -43,9 +44,9 @@ def parse_arguments():
     parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='1')
     parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='0')
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
-    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='32768') #32768
-    parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.001') #0.05
-    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='50') # 10
+    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='8096') #32768
+    parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.01') #0.05 - 0.001
+    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10') # 10 - 25
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
     parser.add_argument("-dm", "--d_model", dest='d_model', action='store', help="Enter the model dimensions", metavar="DIMS", default='64')
     parser.add_argument("-nh", "--nhead", dest='nhead', action='store', help="Enter the number of heads on MHA", metavar="MHA", default='4')
@@ -53,11 +54,13 @@ def parse_arguments():
     parser.add_argument("-dp", "--dropout", dest='dropout', action='store', help="Enter the drop out decimal point", metavar="BZ", default='0.0')
     parser.add_argument("-u", "--units", dest='units', action='store', help="Enter the number of units in MLP hidden layer", metavar="BZ", default='16')
     parser.add_argument("-wd", "--weight_decay", dest='weight_decay', action='store', help="Enter the weight decay", metavar="WD", default='0.2')
+    parser.add_argument("-al", "--alpha", dest='alpha', action='store', help="Enter the alpha value for the loss function", metavar="ALPHA", default='0.5')
+    parser.add_argument("-be", "--beta", dest='beta', action='store', help="Enter the beta value for the loss function", metavar="BETA", default='0.5')
     
     # Run specifications
     parser.add_argument("-svemb", "--save_embeddings", dest='save_embeddings', action='store', help='Enter 1 if want to save embeddings', metavar='SVEMB', default='0')
     parser.add_argument("-pltemb", "--plot_embeddings", dest='plot_embeddings', action='store', help='Enter 1 if want to plot embeddings, note this process can take a long time and a lot of memory.', metavar='PLTEMB', default='0')
-    parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use (e.g. 10%). Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='0.5') # 0.5
+    parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use (e.g. 10%). Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='5') # 0.5
     parser.add_argument("-resume", "--resume_from_batch", dest='resume_from_batch', action='store', help='Enter 1 if want to resume training from last batch checkpoint. Note: default = 0', metavar='RESUME', default='0')
     parser.add_argument("-ckpt_name", "--ckpt_name", dest='ckpt_name', action='store', help='Enter checkpoint name from batch to resume training.', metavar='ckpt_name', default='None')
     parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='0')
@@ -70,8 +73,9 @@ def parse_arguments():
     parser.add_argument("-feat_b_target_col", "--feat_b_target_col", dest='feat_b_target_col', action='store', help='Enter the target column for the modality b data file.', metavar='FEATBTARGETCOL', default='Disease')
     parser.add_argument("-cov_names", "--coveriate_names", dest='coveriate_names', action='store', help='Enter the names of the covariates to use. (no spaces between covariates and comma separated)', metavar='COVNAME', default='Age,Sex')
     parser.add_argument("-cbp", "--count_bins", dest='count_bins', action='store', help='Enter the number of bins to use for binning in the PLE tokenization.', metavar='CBP', default='64')
-    parser.add_argument("-dec", "--decile", dest='decile', action='store', help='Enter the number of deciles to use for decile accuracy calculation, where 9 is the most strict, 1 is the least. Enter 0 for no decile accuracy calculation', metavar='DEC', default='0.5')
+    parser.add_argument("-dec", "--decile", dest='decile', action='store', help='Enter the number of deciles to use for decile accuracy calculation, where 9 is the most strict, 1 is the least. Enter 0 for no decile accuracy calculation', metavar='DEC', default='0') #0.5
     parser.add_argument("-esf", "--early_stopper_flag", dest='early_stopper_flag', action='store', help='Enter 1 if want to use early stopping, 0 if not.', metavar='ESF', default='1')
+    parser.add_argument("-sub_idx_flag", "--sub_idx_flag", dest='sub_idx_flag', action='store', help='Enter 1 if want to use a subset of the data for pair creation.', metavar='SUBIDXFLAG', default='1')
 
     args = parser.parse_args()
 
@@ -134,10 +138,13 @@ if __name__ == '__main__':
         'path_mod_b2group_map' : args.path_mod_b2group_map,
         'path_saved_pairs' : args.path_saved_pairs if args.path_saved_pairs != None else os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle'),
         'path_data' : args.path_data,
+        'path_sub_idx' : args.path_sub_idx,
     }
 
     run_args = {
+        'alpha': float(args.alpha),
         'batch_size': int(args.batch_size),
+        'beta': float(args.beta),
         'ckpt_name': args.ckpt_name,
         'count_bins': int(args.count_bins),
         'covariates_names': args.coveriate_names.split(','),
@@ -164,6 +171,7 @@ if __name__ == '__main__':
         'rnd_st': int(args.random_seed),
         'resume_from_batch': bool(int(args.resume_from_batch)),
         'save_embeddings': bool(int(args.save_embeddings)),
+        'sub_idx_flag': bool(int(args.sub_idx_flag)),
         'downstream_pred_task_flag': bool(int(args.downstream_pred_task_flag)),
         'test_size': float(int(args.test_size) / 100),
         'top_n_perc': float(args.top_n_perc),

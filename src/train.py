@@ -25,6 +25,7 @@ from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
 from src.utils import EarlyStopper, calculate_acc, calculate_decile_acc
 from sklearn.utils.class_weight import compute_class_weight
 from tabulate import tabulate
+from src.batch_sampler import UniquePairBatchSampler
 
 
 
@@ -41,9 +42,12 @@ def train(config, data=None, checkpoint_dir=None):
         seq_b_id_map, seq_a_id_map = data.get_token_maps()
 
     # Define dataloaders
-    train_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['train_index']), batch_size=int(config["batch_size"]), shuffle=True)
-
-    val_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['val_index']), batch_size=int(config["batch_size"]), shuffle=False)
+    train_batch_sampler = UniquePairBatchSampler(data, config['train_index'], int(config["batch_size"]))
+    val_batch_sampler = UniquePairBatchSampler(data, config['val_index'], int(config["batch_size"])) # Adding batch sampler to avoid repeated pairs in matrix
+    # train_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['train_index']), batch_size=int(config["batch_size"]), shuffle=True)
+    # val_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['val_index']), batch_size=int(config["batch_size"]), shuffle=False)
+    train_loader = torch.utils.data.DataLoader(data, batch_sampler=train_batch_sampler) # batch_sampler is mutually exclusive with shuffle, and batch_size
+    val_loader = torch.utils.data.DataLoader(data, batch_sampler=val_batch_sampler)
     
     # Model and Hyperparams
     model = comical_new_emb(config) if config['out_flag']=='pairs' else mlp_only(config) if config['out_flag']=='mlp' else comical_new_emb_clasf(config)
@@ -92,7 +96,8 @@ def train(config, data=None, checkpoint_dir=None):
     # optimizer = optim.Adam(model.parameters(), lr=5e-5,betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
     
     # optimizer = optim.Adam(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
-    optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=config['weight_decay'])
+    # optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=config['weight_decay'])
+    optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6)
 
     
     # Added classification and regression losses
@@ -107,6 +112,13 @@ def train(config, data=None, checkpoint_dir=None):
     else:
         loss_seq_a = nn.CrossEntropyLoss()
         loss_seq_b = nn.CrossEntropyLoss()
+        # Updated loss with L_concept + L_condition
+        # loss_seq_a_concept = nn.CrossEntropyLoss()
+        # loss_seq_b_concept = nn.CrossEntropyLoss()
+        # loss_seq_a_condition = nn.CrossEntropyLoss()
+        # loss_seq_b_condition = nn.CrossEntropyLoss()
+        alpha = config['alpha']
+        beta = config['beta']
 
     # Learning rate scheduler with warm-up
     def lambda_lr(step):
@@ -168,13 +180,15 @@ def train(config, data=None, checkpoint_dir=None):
                 
             if config['out_flag'] == 'pairs':
                 ground_truth = torch.arange(len(seq_a),dtype=torch.long,device=device)
+                # ground_truth_conditioned = torch.arange(len(seq_a),dtype=torch.long,device=device)
                 total_loss = (loss_seq_a(logits_seq_a,ground_truth) + loss_seq_b(logits_seq_b,ground_truth))/2
+                # total_loss = alpha * (loss_seq_a_concept(logits_seq_a,ground_truth)+loss_seq_b_concept(logits_seq_b,ground_truth))/2 + beta * (loss_seq_a_condition(logits_seq_a,ground_truth_conditioned)+loss_seq_b_condition(logits_seq_b,ground_truth_conditioned))/2
             else:
                 total_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
             
             sum_loss += total_loss.item()
             total_loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm = 2.0, norm_type=2) # gradient clipping to avoid vanishing/exploding gradients
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm = 2.0, norm_type=2) # gradient clipping to avoid vanishing/exploding gradients
             optimizer.step()
             scheduler.step()
             # save_ckp_batch(epoch,batch_idx,model,optimizer,checkpoint_dir)
@@ -212,6 +226,7 @@ def train(config, data=None, checkpoint_dir=None):
                 if config['out_flag'] == 'pairs':
                     ground_truth = torch.arange(len(seq_a),dtype=torch.long,device=device)
                     total_val_loss = (loss_seq_a(logits_seq_a,ground_truth) + loss_seq_b(logits_seq_b,ground_truth))/2
+                    # total_val_loss = alpha * (loss_seq_a_concept(logits_seq_a,ground_truth) + loss_seq_b_concept(logits_seq_b,ground_truth))/2 + beta * (loss_seq_a_condition(logits_seq_a,ground_truth) + loss_seq_b_condition(logits_seq_b,ground_truth))/2
                     # Compute softmax probs to use for accuracy calculation
                     probs_seq_a = np.argmax(logits_seq_a.softmax(dim=-1).cpu().numpy(), axis = 1)
                     probs_seq_b = np.argmax(logits_seq_b.softmax(dim=-1).cpu().numpy(), axis = 1)

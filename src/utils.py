@@ -33,15 +33,28 @@ def select_gpu(num_gpus=1,verbose=False):
 
 ### Results Utils ###
 def plot_training_curves(train_losses, val_losses, val_acc, path):
-    # Plot training curves
-    plt.figure(figsize=(10, 10))
-    plt.plot(train_losses, label='Train')
-    plt.plot(val_losses, label='Validation')
-    plt.ylabel('Loss')
-    plt.xlabel('Epochs')
-    plt.legend()
-    plt.savefig(os.path.join(path,'training_curves.pdf'))
+    # Create a figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+
+    # Plot the training loss in the first subplot
+    ax1.plot(train_losses, label='Train Loss', color='blue')
+    ax1.set_ylabel('Loss')
+    ax1.set_xlabel('Epochs')
+    ax1.legend()
+    ax1.set_title('Training Loss')
+
+    # Plot the validation loss in the second subplot
+    ax2.plot(val_losses, label='Validation Loss', color='orange')
+    ax2.set_ylabel('Loss')
+    ax2.set_xlabel('Epochs')
+    ax2.legend()
+    ax2.set_title('Validation Loss')
+
+    # Adjust layout and save the figure
+    plt.tight_layout()
+    plt.savefig(os.path.join(path, 'training_curves.pdf'))
     plt.close()
+    
     ### Add accuracy plot
     if val_acc is not None:
         plt.figure(figsize=(10, 10))

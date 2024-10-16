@@ -72,6 +72,8 @@ def train_eval(paths, args, config = None):
             'num_classes': 2 if args['out_flag'] == 'clf' else 1,
             'decile':args['decile'],
             'early_stopper_flag':args['early_stopper_flag'],
+            'alpha':args['alpha'],
+            'beta':args['beta'],
         }
     ### Train model ###
     if args['tune_flag']:
@@ -114,6 +116,8 @@ def train_eval(paths, args, config = None):
             'num_classes': 2 if args['out_flag'] == 'clf' else 1,
             'decile':args['decile'],
             'early_stopper_flag':args['early_stopper_flag'],
+            'alpha':tune.uniform(0.1, 0.9),
+            'beta':tune.uniform(0.1, 0.9),
         }
         scheduler = ASHAScheduler(
             max_t=10,

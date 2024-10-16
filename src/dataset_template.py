@@ -64,6 +64,10 @@ class dataset(Dataset):
         self.covariates = self.covariates[~self.covariates.index.duplicated(keep='first')]
         self.covariates = self.covariates.loc[:,covariates_names]
     
+    def load_idx_subset(self):
+        idx = np.loadtxt(self.path_subset_idx, delimiter=',', dtype=int)
+        return idx.astype('int')
+    
     def get_iid_tensor_map(self):
         return self.iid_tensorID_map
     
@@ -77,6 +81,12 @@ class dataset(Dataset):
         if self.downstream_pred_task_flag:
             self.target_labels = self.load_target_labels(index_col)
             self.load_covariates(covariates_names, index_col)
+
+        if self.specific_idx_pair_creation_flag:
+            idx = self.load_idx_subset()
+            # Filter the data based on the idx
+            self.mod_a, self.mod_a_idx = self.mod_a.loc[self.mod_a_idx.intersection(idx)], self.mod_a_idx.intersection(idx)
+            self.mod_b, self.mod_b_idx = self.mod_b.loc[self.mod_b_idx.intersection(idx)], self.mod_b_idx.intersection(idx)
 
     def match_modalities(self):
         self.matching_ids = reduce(np.intersect1d, (self.mod_a_idx, self.mod_b_idx, self.target_labels.index,self.covariates.index,self.pcs.index)) if self.downstream_pred_task_flag else np.intersect1d(self.mod_a_idx, self.mod_b_idx) 
@@ -285,6 +295,8 @@ class dataset(Dataset):
         feat_b_target_col = args['feat_b_target_col']
         feat_a_index_col = args['feat_a_index_col']
         feat_b_index_col = args['feat_b_index_col']
+        self.specific_idx_pair_creation_flag = args['sub_idx_flag']
+        self.path_subset_idx = paths['path_sub_idx']
 
         self.load_data(index_col = index_col, covariates_names = covariates_names)
         self.match_modalities()
