@@ -42,12 +42,12 @@ def train(config, data=None, checkpoint_dir=None):
         seq_b_id_map, seq_a_id_map = data.get_token_maps()
 
     # Define dataloaders
-    train_batch_sampler = UniquePairBatchSampler(data, config['train_index'], int(config["batch_size"]))
-    val_batch_sampler = UniquePairBatchSampler(data, config['val_index'], int(config["batch_size"])) # Adding batch sampler to avoid repeated pairs in matrix
-    # train_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['train_index']), batch_size=int(config["batch_size"]), shuffle=True)
-    # val_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['val_index']), batch_size=int(config["batch_size"]), shuffle=False)
-    train_loader = torch.utils.data.DataLoader(data, batch_sampler=train_batch_sampler) # batch_sampler is mutually exclusive with shuffle, and batch_size
-    val_loader = torch.utils.data.DataLoader(data, batch_sampler=val_batch_sampler)
+    # train_batch_sampler = UniquePairBatchSampler(data, config['train_index'], int(config["batch_size"]))
+    # val_batch_sampler = UniquePairBatchSampler(data, config['val_index'], int(config["batch_size"])) # Adding batch sampler to avoid repeated pairs in matrix
+    train_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['train_index']), batch_size=int(config["batch_size"]), shuffle=True)
+    val_loader = torch.utils.data.DataLoader(torch.utils.data.Subset(data,config['val_index']), batch_size=int(config["batch_size"]), shuffle=False)
+    # train_loader = torch.utils.data.DataLoader(data, batch_sampler=train_batch_sampler) # batch_sampler is mutually exclusive with shuffle, and batch_size
+    # val_loader = torch.utils.data.DataLoader(data, batch_sampler=val_batch_sampler)
     
     # Model and Hyperparams
     model = comical_new_emb(config) if config['out_flag']=='pairs' else mlp_only(config) if config['out_flag']=='mlp' else comical_new_emb_clasf(config)

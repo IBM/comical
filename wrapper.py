@@ -27,7 +27,8 @@ def parse_arguments():
     parser.add_argument("-pmbc", "--path_mod_b2group_map", dest='path_mod_b2group_map', action='store', help="Enter path for Modality B to latent grouping mapping file", metavar="PMBC", default=os.path.join(os.getcwd(),'data','IDPs_and_disease_mapping.csv'))
     parser.add_argument("-psp", "--path_saved_pairs", dest='path_saved_pairs', action='store', help="Enter path for previously saved pairings, or to save if no pairings exist", metavar="SAVEDPAIRS") #pairs_top_n_0.5
     parser.add_argument("-d", "--path_data", dest='path_data', action='store', help="Enter path for data directory, default is ./data", metavar="D", default=os.path.join(os.getcwd(),'data'))
-    parser.add_argument("-p_sx", "--path_sub_idx", dest='path_sub_idx', action='store', help="Enter the path for the subject labels file.", metavar='SUBIDX', default=os.path.join(os.getcwd(),'data','positive_idx.csv'))
+    parser.add_argument("-p_sx", "--path_sub_idx", dest='path_sub_idx', action='store', help="Enter the path for the subject labels file.", metavar='SUBIDX', default=os.path.join(os.getcwd(),'data','clf_idxs.csv'))
+    parser.add_argument("-p_sxu", "--path_sub_idx_unseen", dest='path_sub_idx_unseen', action='store', help="Enter the path for the unseen subject labels file.", metavar='SUBIDXU', default=os.path.join(os.getcwd(),'data','unseen_hc_idxs.csv'))
 
     # Results path
     parser.add_argument("-pr", "--path_res", dest='path_res', action='store', help="Output folder", metavar="PR", default=os.path.join(os.getcwd(),'results')) ##
@@ -63,9 +64,9 @@ def parse_arguments():
     parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use (e.g. 10%). Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='5') # 0.5
     parser.add_argument("-resume", "--resume_from_batch", dest='resume_from_batch', action='store', help='Enter 1 if want to resume training from last batch checkpoint. Note: default = 0', metavar='RESUME', default='0')
     parser.add_argument("-ckpt_name", "--ckpt_name", dest='ckpt_name', action='store', help='Enter checkpoint name from batch to resume training.', metavar='ckpt_name', default='None')
-    parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='0')
-    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or pairs for training encoders for pair association.', metavar='OUTFLAG', default='pairs') #pairs
-    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='FAKE_PRS')
+    parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='1')
+    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or pairs for training encoders for pair association.', metavar='OUTFLAG', default='reg') #pairs
+    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='neurological') # FAKE_PRS
     parser.add_argument("-idx_col", "--index_col", dest='index_col', action='store', help='Enter the index column for the modality a and b data files.', metavar='IDXCOL', default='eid')
     parser.add_argument("-feat_a_idx_col", "--feat_a_index_col", dest='feat_a_index_col', action='store', help='Enter the index column for the modality a data file.', metavar='FEATAIDXCOL', default='SNPs')
     parser.add_argument("-feat_b_idx_col", "--feat_b_index_col", dest='feat_b_index_col', action='store', help='Enter the index column for the modality b data file.', metavar='FEATBIDXCOL', default='IDPs')
@@ -75,7 +76,7 @@ def parse_arguments():
     parser.add_argument("-cbp", "--count_bins", dest='count_bins', action='store', help='Enter the number of bins to use for binning in the PLE tokenization.', metavar='CBP', default='64')
     parser.add_argument("-dec", "--decile", dest='decile', action='store', help='Enter the number of deciles to use for decile accuracy calculation, where 9 is the most strict, 1 is the least. Enter 0 for no decile accuracy calculation', metavar='DEC', default='0') #0.5
     parser.add_argument("-esf", "--early_stopper_flag", dest='early_stopper_flag', action='store', help='Enter 1 if want to use early stopping, 0 if not.', metavar='ESF', default='1')
-    parser.add_argument("-sub_idx_flag", "--sub_idx_flag", dest='sub_idx_flag', action='store', help='Enter 1 if want to use a subset of the data for pair creation.', metavar='SUBIDXFLAG', default='1')
+    parser.add_argument("-sub_idx_flag", "--sub_idx_flag", dest='sub_idx_flag', action='store', help='Enter 1 if want to use a subset of the data for pair creation.', metavar='SUBIDXFLAG', default='0')
 
     args = parser.parse_args()
 
@@ -139,6 +140,7 @@ if __name__ == '__main__':
         'path_saved_pairs' : args.path_saved_pairs if args.path_saved_pairs != None else os.path.join(args.path_data,'pairs_top_n_'+args.top_n_perc+'.pickle'),
         'path_data' : args.path_data,
         'path_sub_idx' : args.path_sub_idx,
+        'path_sub_idx_unseen' : args.path_sub_idx_unseen if args.path_sub_idx_unseen != None else None,
     }
 
     run_args = {

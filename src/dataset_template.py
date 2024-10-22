@@ -64,8 +64,8 @@ class dataset(Dataset):
         self.covariates = self.covariates[~self.covariates.index.duplicated(keep='first')]
         self.covariates = self.covariates.loc[:,covariates_names]
     
-    def load_idx_subset(self):
-        idx = np.loadtxt(self.path_subset_idx, delimiter=',', dtype=int)
+    def load_idx_subset(self, path):
+        idx = np.loadtxt(path, delimiter=',', dtype=int)
         return idx.astype('int')
     
     def get_iid_tensor_map(self):
@@ -81,9 +81,23 @@ class dataset(Dataset):
         if self.downstream_pred_task_flag:
             self.target_labels = self.load_target_labels(index_col)
             self.load_covariates(covariates_names, index_col)
+            if self.task == 1:
+                idx = self.load_idx_subset(self.path_subset_idx)
+                # Filter the data based on the idx
+                self.mod_a, self.mod_a_idx = self.mod_a.loc[self.mod_a_idx.intersection(idx)], self.mod_a_idx.intersection(idx)
+                self.mod_b, self.mod_b_idx = self.mod_b.loc[self.mod_b_idx.intersection(idx)], self.mod_b_idx.intersection(idx)
+            if self.task == 2:
+                self.mix_idx = self.load_idx_subset(self.path_subset_idx)
+                self.hc_idx = self.load_idx_subset(self.path_subset_idx_unseen)
+                # Filter the data based on the union of mix_idx and hc_idx.shape
+
+                self.mod_a, self.mod_a_idx = self.mod_a.loc[np.union1d(self.mix_idx, self.hc_idx)], self.mod_a_idx.intersection(np.union1d(self.mix_idx, self.hc_idx))
+                self.mod_b, self.mod_b_idx = self.mod_b.loc[np.union1d(self.mix_idx, self.hc_idx)], self.mod_b_idx.intersection(np.union1d(self.mix_idx, self.hc_idx))
+
+
 
         if self.specific_idx_pair_creation_flag:
-            idx = self.load_idx_subset()
+            idx = self.load_idx_subset(self.path_subset_idx)
             # Filter the data based on the idx
             self.mod_a, self.mod_a_idx = self.mod_a.loc[self.mod_a_idx.intersection(idx)], self.mod_a_idx.intersection(idx)
             self.mod_b, self.mod_b_idx = self.mod_b.loc[self.mod_b_idx.intersection(idx)], self.mod_b_idx.intersection(idx)
@@ -257,11 +271,26 @@ class dataset(Dataset):
         
     def set_data_splits(self):
         if self.downstream_pred_task_flag: # added to return subject based pairs instead of snp-idp pairs
-            self.train_idx, self.test_idx, _, _ = train_test_split(
-             np.arange(len(self.mod_a)), np.zeros(len(self.mod_a)), test_size=self.test_size, random_state=self.rnd_st)
+            if self.task == 1: # Classify patients postitive vs controls - stratified split
+                self.train_idx, self.test_idx, _, _ = train_test_split(
+                    np.arange(len(self.mod_a)), self.target_labels, test_size=self.test_size, random_state=self.rnd_st, stratify=self.target_labels)
+                self.train_idx, self.val_idx, _, _  = train_test_split(
+                    self.train_idx, self.target_labels[self.train_idx], test_size = self.val_size, random_state=self.rnd_st, stratify=self.target_labels[self.train_idx])
 
-            self.train_idx, self.val_idx, _, _  = train_test_split(
-                self.train_idx, np.zeros(len(self.train_idx)), test_size = self.val_size, random_state=self.rnd_st)
+            elif self.task == 2: # Regression of pseudo prs - train on D/HC mix an evalaute on HC only
+                idx_map = dict(zip(np.union1d(self.mix_idx, self.hc_idx),range(len(self.mod_a_idx))))
+                # train val split using the mix idx only, use the idx_map to map the indices from the original indices to the new indices
+                self.train_idx, self.val_idx, _, _  = train_test_split(
+                    np.array([idx_map[i] for i in self.mix_idx]), self.target_labels[np.array([idx_map[i] for i in self.mix_idx])], test_size = self.val_size, random_state=self.rnd_st
+                )
+                self.test_idx = np.array([idx_map[i] for i in self.hc_idx])
+                
+            else:
+                self.train_idx, self.test_idx, _, _ = train_test_split(
+                np.arange(len(self.mod_a)), np.zeros(len(self.mod_a)), test_size=self.test_size, random_state=self.rnd_st)
+
+                self.train_idx, self.val_idx, _, _  = train_test_split(
+                    self.train_idx, np.zeros(len(self.train_idx)), test_size = self.val_size, random_state=self.rnd_st)
         else:
             self.train_idx, self.test_idx, _, _ = train_test_split(
                 np.arange(len(self.pairs)), np.zeros(len(self.pairs)), test_size=self.test_size, random_state=self.rnd_st)
@@ -297,6 +326,8 @@ class dataset(Dataset):
         feat_b_index_col = args['feat_b_index_col']
         self.specific_idx_pair_creation_flag = args['sub_idx_flag']
         self.path_subset_idx = paths['path_sub_idx']
+        self.path_subset_idx_unseen = paths['path_sub_idx_unseen']
+        self.task = 1 if args['out_flag'] == 'clf' else 2 if args['out_flag'] == 'reg' else 0
 
         self.load_data(index_col = index_col, covariates_names = covariates_names)
         self.match_modalities()
