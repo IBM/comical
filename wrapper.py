@@ -21,7 +21,7 @@ def parse_arguments():
     parser.add_argument("-ps", "--path_seq", dest='path_seq', action='store', help="Enter path for SNP sequences file", metavar="PS", default=os.path.join(os.getcwd(),'data','snp-encodings-from-vcf.csv'))
     parser.add_argument("-pi", "--path_idp", dest='path_idp', action='store', help="Enter path for IDPs file", metavar="PI", default=os.path.join(os.getcwd(),'data','T1_struct_brainMRI_IDPs.csv'))
     parser.add_argument("-pm", "--path_mod_b_map", dest='path_mod_b_map', action='store', help="Enter path for Modality B mapping file (optional)", metavar="PM", default=os.path.join(os.getcwd(),'data','T1mri.csv'))
-    parser.add_argument("-pt", "--path_target_labels", dest='path_target_labels', action='store', help="Enter path for subject labels file", metavar="PT", default=os.path.join(os.getcwd(),'data','neuroDx_wPRS.csv'))
+    parser.add_argument("-pt", "--path_target_labels", dest='path_target_labels', action='store', help="Enter path for subject labels file", metavar="PT", default=os.path.join(os.getcwd(),'data','neuroDx_wPRS_real.csv')) #neuroDx_wPRS.csv
     parser.add_argument("-cov", "--path_covariates", dest='path_covariates', action='store', help="Enter path for covariates file", metavar="COV", default=os.path.join(os.getcwd(),'data','neuroDx_geneticPCs.csv'))
     parser.add_argument("-pmac", "--path_mod_a2group_map", dest='path_mod_a2group_map', action='store', help="Enter path for Modality A to latent grouping mapping file", metavar="PMAC", default=os.path.join(os.getcwd(),'data','SNPs_and_disease_mapping_with_pvalues.csv'))
     parser.add_argument("-pmbc", "--path_mod_b2group_map", dest='path_mod_b2group_map', action='store', help="Enter path for Modality B to latent grouping mapping file", metavar="PMBC", default=os.path.join(os.getcwd(),'data','IDPs_and_disease_mapping.csv'))
@@ -45,7 +45,7 @@ def parse_arguments():
     parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='1')
     parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='0')
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
-    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='8096') #32768
+    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='1024') #32768
     parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.01') #0.05 - 0.001
     parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10') # 10 - 25
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
@@ -66,7 +66,7 @@ def parse_arguments():
     parser.add_argument("-ckpt_name", "--ckpt_name", dest='ckpt_name', action='store', help='Enter checkpoint name from batch to resume training.', metavar='ckpt_name', default='None')
     parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='1')
     parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or pairs for training encoders for pair association.', metavar='OUTFLAG', default='reg') #pairs
-    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='neurological') # FAKE_PRS
+    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='AD') # FAKE_PRS - neurological
     parser.add_argument("-idx_col", "--index_col", dest='index_col', action='store', help='Enter the index column for the modality a and b data files.', metavar='IDXCOL', default='eid')
     parser.add_argument("-feat_a_idx_col", "--feat_a_index_col", dest='feat_a_index_col', action='store', help='Enter the index column for the modality a data file.', metavar='FEATAIDXCOL', default='SNPs')
     parser.add_argument("-feat_b_idx_col", "--feat_b_index_col", dest='feat_b_index_col', action='store', help='Enter the index column for the modality b data file.', metavar='FEATBIDXCOL', default='IDPs')
@@ -77,6 +77,7 @@ def parse_arguments():
     parser.add_argument("-dec", "--decile", dest='decile', action='store', help='Enter the number of deciles to use for decile accuracy calculation, where 9 is the most strict, 1 is the least. Enter 0 for no decile accuracy calculation', metavar='DEC', default='0') #0.5
     parser.add_argument("-esf", "--early_stopper_flag", dest='early_stopper_flag', action='store', help='Enter 1 if want to use early stopping, 0 if not.', metavar='ESF', default='1')
     parser.add_argument("-sub_idx_flag", "--sub_idx_flag", dest='sub_idx_flag', action='store', help='Enter 1 if want to use a subset of the data for pair creation.', metavar='SUBIDXFLAG', default='0')
+    parser.add_argument("-grad_clip", "--grad_clip", dest='grad_clip', action='store', help='Enter the gradient clipping value.', metavar='GRADCLIP', default='2.0')
 
     args = parser.parse_args()
 
@@ -163,6 +164,7 @@ if __name__ == '__main__':
         'feat_b_target_col':args.feat_b_target_col,
         'fname_root_out': args.fname_out_root,
         'gpus_per_trial': args.gpus_per_trial,
+        'grad_clip': float(args.grad_clip),
         'index_col': args.index_col if type(args.index_col) == str else int(args.index_col),
         'learning_rate': float(args.learning_rate),
         'nhead': int(args.nhead),

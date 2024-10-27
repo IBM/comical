@@ -96,8 +96,8 @@ def train(config, data=None, checkpoint_dir=None):
     # optimizer = optim.Adam(model.parameters(), lr=5e-5,betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
     
     # optimizer = optim.Adam(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=0.2)
-    # optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=config['weight_decay'])
-    optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6)
+    optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6,weight_decay=config['weight_decay'])
+    # optimizer = optim.AdamW(model.parameters(), lr=config['lr'],betas=(0.9,0.98),eps=1e-6)
 
     
     # Added classification and regression losses
@@ -188,6 +188,8 @@ def train(config, data=None, checkpoint_dir=None):
             
             sum_loss += total_loss.item()
             total_loss.backward()
+            if config['grad_clip'] is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm = config['grad_clip'], norm_type=2)
             # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm = 2.0, norm_type=2) # gradient clipping to avoid vanishing/exploding gradients
             optimizer.step()
             scheduler.step()

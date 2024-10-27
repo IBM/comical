@@ -116,6 +116,9 @@ class dataset(Dataset):
             self.covariates = self.covariates.reset_index(drop=True)
             self.pcs = self.pcs.loc[self.matching_ids].sort_index()
             self.pcs = self.pcs.reset_index(drop=True)
+            # Added to deal with PRS smaller set of ids
+            self.mix_idx = np.intersect1d(self.mix_idx, self.matching_ids)
+            self.hc_idx = np.intersect1d(self.hc_idx, self.matching_ids)
 
     def set_tabular_embeddings(self, count, data):
         return idp_tokenization('cpu',count,self.rnd_st,data.index,{'train':data.values.astype('float')})

@@ -74,6 +74,7 @@ def train_eval(paths, args, config = None):
             'early_stopper_flag':args['early_stopper_flag'],
             'alpha':args['alpha'],
             'beta':args['beta'],
+            'grad_clip':args['grad_clip'],
         }
     ### Train model ###
     if args['tune_flag']:
@@ -160,7 +161,8 @@ def train_eval(paths, args, config = None):
     else:
         train_losses, val_losses, val_accs, uniqueness = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
         # Select checkpoint with the lowest loss on validation set
-        best_epoch = np.argmin(val_losses)
+        # best_epoch = np.argmin(val_losses)
+        best_epoch = np.argmin(val_losses)+400 # balancing convergence and overfitting
         best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
 
     ## Evaluate model ##
