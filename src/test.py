@@ -11,6 +11,7 @@ from sklearn.metrics import roc_auc_score
 from collections import Counter
 from scipy.stats import chisquare
 import scipy.stats as stats
+import statsmodels.api as sm
 
 import datetime
 import json
@@ -119,6 +120,16 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
                 data_auc_plot['preds'].extend(pred.softmax(dim=-1).cpu().numpy()[:,1])
                 data_auc_plot['target'].extend(target.cpu().numpy())
                 acc += compute_auc(pred.softmax(dim=-1).cpu().numpy()[:,1],target.cpu().numpy()) #substitue AUC for accuracy
+            elif config['out_flag'] == 'reg':
+                # Calculte R2 per batch using statsmodels OLS
+                pred_prs = pred.detach().cpu().numpy()
+                pred_prs = np.concatenate((pred_prs, covariates.cpu().numpy()), axis=1)
+                pred_prs = sm.add_constant(pred_prs)
+                sm_model = sm.OLS(target.cpu().numpy(),pred_prs)
+                sm_results = sm_model.fit()
+                r2_adj = sm_results.rsquared_adj
+                r2 = sm_results.rsquared
+                acc += r2_adj
             else:
                 # Calculte MSE per batch
                 acc += F.mse_loss(pred.squeeze(-1),target).item()

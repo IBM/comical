@@ -47,7 +47,7 @@ def parse_arguments():
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
     parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='64') #32768
     parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.01') #0.05 - 0.001
-    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10') # 10 - 25
+    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='1') # 10 - 25
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
     parser.add_argument("-dm", "--d_model", dest='d_model', action='store', help="Enter the model dimensions", metavar="DIMS", default='64')
     parser.add_argument("-nh", "--nhead", dest='nhead', action='store', help="Enter the number of heads on MHA", metavar="MHA", default='4')
@@ -190,7 +190,8 @@ if __name__ == '__main__':
     results_dict = train_eval(paths,run_args)
     
     print(f'Test set loss {results_dict["metrics"]["loss_test"]}')
-    print(f'Test set top-1 accuracy {results_dict["metrics"]["acc_test"]}')
+    # print(f'Test set top-1 accuracy {results_dict["metrics"]["acc_test"]}')
+    print(f'Test set top-1 accuracy {results_dict["metrics"]["acc_test"]}') if args.out_flag == 'clf' else print(f'Test set R2 {results_dict["metrics"]["acc_test"]}')
 
     # Plot losses and result curves
     if bool(int(args.tune_flag)) == False:
