@@ -68,10 +68,10 @@ def train(config, data=None, checkpoint_dir=None):
     
     # GPU settings
     device = "cpu"
-    # if torch.cuda.is_available():
-    #     device = "cuda:0"
-    #     if torch.cuda.device_count() > 1:
-            # model = nn.DataParallel(model)
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
             # model = DDP(model, device_ids=[rank]) # TODO: implement DDP for better paralelization (if needed)
     model = model.to(device)
     
