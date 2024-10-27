@@ -68,10 +68,10 @@ def train(config, data=None, checkpoint_dir=None):
     
     # GPU settings
     device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda:0"
-        if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model)
+    # if torch.cuda.is_available():
+    #     device = "cuda:0"
+    #     if torch.cuda.device_count() > 1:
+            # model = nn.DataParallel(model)
             # model = DDP(model, device_ids=[rank]) # TODO: implement DDP for better paralelization (if needed)
     model = model.to(device)
     
@@ -184,7 +184,7 @@ def train(config, data=None, checkpoint_dir=None):
                 total_loss = (loss_seq_a(logits_seq_a,ground_truth) + loss_seq_b(logits_seq_b,ground_truth))/2
                 # total_loss = alpha * (loss_seq_a_concept(logits_seq_a,ground_truth)+loss_seq_b_concept(logits_seq_b,ground_truth))/2 + beta * (loss_seq_a_condition(logits_seq_a,ground_truth_conditioned)+loss_seq_b_condition(logits_seq_b,ground_truth_conditioned))/2
             else:
-                total_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                total_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred.squeeze(-1),target)
             
             sum_loss += total_loss.item()
             total_loss.backward()
@@ -248,7 +248,7 @@ def train(config, data=None, checkpoint_dir=None):
                         uniqueness['seq_b_uniques'].extend(seq_b_uniques)
                         
                 else:
-                    total_val_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                    total_val_loss = loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred.squeeze(-1),target)
                 val_loss += total_val_loss
                 val_steps += 1
                 val_acc /= (batch_idx+1)
