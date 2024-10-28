@@ -164,7 +164,7 @@ def train_eval(paths, args, config = None):
         best_epoch = np.argmin(val_losses)
         best_epoch = np.argmin(val_losses)+int(len(val_losses)*0.2)# balancing convergence and overfitting
         best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
-        # best_checkpoint_path = '/home/machad/fast/comical/data/AD_5_checkpoint_epoch_1199.pt'
+        # best_checkpoint_path = '/home/machad/fast/comical/data/BD_10_checkpoint_epoch_2499.pt'
 
     ## Evaluate model ##
     # Evaluate on all data paritions - using best checkpointed model
