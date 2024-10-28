@@ -129,7 +129,8 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
                 sm_results = sm_model.fit()
                 r2_adj = sm_results.rsquared_adj
                 r2 = sm_results.rsquared
-                acc += r2_adj
+  
+                acc += r2
             else:
                 # Calculte MSE per batch
                 acc += F.mse_loss(pred.squeeze(-1),target).item()

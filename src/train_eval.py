@@ -161,9 +161,10 @@ def train_eval(paths, args, config = None):
     else:
         train_losses, val_losses, val_accs, uniqueness = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
         # Select checkpoint with the lowest loss on validation set
-        # best_epoch = np.argmin(val_losses)
-        best_epoch = np.argmin(val_losses)+(len(val_losses)*0.2)# balancing convergence and overfitting
+        best_epoch = np.argmin(val_losses)
+        best_epoch = np.argmin(val_losses)+int(len(val_losses)*0.2)# balancing convergence and overfitting
         best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
+        # best_checkpoint_path = '/home/machad/fast/comical/data/AD_5_checkpoint_epoch_1199.pt'
 
     ## Evaluate model ##
     # Evaluate on all data paritions - using best checkpointed model
