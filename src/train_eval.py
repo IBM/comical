@@ -19,6 +19,9 @@ from ray.train import Checkpoint
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune import CLIReporter
 
+import statsmodels.api as sm
+import seaborn as sns
+
 
 def train_eval(paths, args, config = None):
     # Load data and create dataset object
@@ -56,6 +59,7 @@ def train_eval(paths, args, config = None):
             'activation' : 'gelu',
             ## Model parameters (not trainable)
             'tensorboard_log_path':paths['tensorboard_log'],
+            'fname_root_out':args['fname_root_out'],
             'num_snps':10000,
             'num_idps':139,
             'idp_tok_dims':64,
@@ -69,7 +73,7 @@ def train_eval(paths, args, config = None):
             'out_flag':args['out_flag'],
             'target':args['target'],
             'warmup_steps' : 2000, # using 2000 as recommended in clip paper, 
-            'num_classes': 2 if args['out_flag'] == 'clf' else 1,
+            'num_classes': 1,#2 if args['out_flag'] == 'clf' else 1,
             'decile':args['decile'],
             'early_stopper_flag':args['early_stopper_flag'],
             'alpha':args['alpha'],
@@ -161,16 +165,36 @@ def train_eval(paths, args, config = None):
     else:
         train_losses, val_losses, val_accs, uniqueness = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
         # Select checkpoint with the lowest loss on validation set
-        best_epoch = np.argmin(val_losses)
-        best_epoch = np.argmin(val_losses)+int(len(val_losses)*0.2)# balancing convergence and overfitting
-        best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
-        # best_checkpoint_path = '/home/machad/fast/comical/data/BD_10_checkpoint_epoch_2499.pt'
+        # best_epoch = np.argmin(val_losses)
+        # best_epoch = np.argmin(val_losses)+int(len(val_losses)*0.2)# balancing convergence and overfitting
+        # best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
+
+        # best_checkpoint_path = paths['checkpoint_name']
+        best_checkpoint_path = '/home/machad/fast/comical/data/BD_10_checkpoint_epoch_2499.pt'
+        # train_losses = [0.1,0.2,0.3,0.4,0.5]
+        # val_losses = [0.1,0.2,0.3,0.4,0.5]
+        # val_accs = [0.1,0.2,0.3,0.4,0.5]
+        # uniqueness = None
 
     ## Evaluate model ##
     # Evaluate on all data paritions - using best checkpointed model
     # loss_train, acc_train, _ = test_model(config, data, train_idx, best_checkpoint_path)
     # loss_val, acc_val, _ = test_model(config, data, val_idx, best_checkpoint_path)
     loss_test, acc_test, extra_test, softmax_idp, softmax_snp = test_model(config, args ,data, test_idx, best_checkpoint_path)
+
+    # Plot partregress and regplot if PRS is the target
+    if args['out_flag'] == 'prs':
+        pred_prs = sm.add_constant(extra_test['preds'])
+        sm_model = sm.OLS(extra_test['target'],pred_prs)
+        sm_results = sm_model.fit()
+        # fig = sm.graphics.plot_partregress_grid(sm_results)
+        fig = sm.graphics.plot_fit(sm_results, 'x1')
+        fig.tight_layout(pad=1.0)
+        fig.savefig(os.path.join(config['results_path'],'partregress.png'))
+
+        
+        fig = sns.regplot(x=extra_test['preds'], y=extra_test['target'])
+        fig.savefig(os.path.join(config['results_path'],'regplot.png'))
 
     # Return dictionary with results, data info
     results_ret = {

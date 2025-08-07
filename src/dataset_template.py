@@ -117,8 +117,9 @@ class dataset(Dataset):
             self.pcs = self.pcs.loc[self.matching_ids].sort_index()
             self.pcs = self.pcs.reset_index(drop=True)
             # Added to deal with PRS smaller set of ids
-            self.mix_idx = np.intersect1d(self.mix_idx, self.matching_ids)
-            self.hc_idx = np.intersect1d(self.hc_idx, self.matching_ids)
+            if self.task == 2:
+                self.mix_idx = np.intersect1d(self.mix_idx, self.matching_ids)
+                self.hc_idx = np.intersect1d(self.hc_idx, self.matching_ids)
 
     def set_tabular_embeddings(self, count, data):
         return idp_tokenization('cpu',count,self.rnd_st,data.index,{'train':data.values.astype('float')})
@@ -236,6 +237,11 @@ class dataset(Dataset):
     def load_pairs(self,path_saved_pairs):
         with open(path_saved_pairs, "rb") as outfile:
             self.pair_dictionary = pickle.load(outfile)
+
+    def get_disease_idp_snp_map(self):
+        feats_a_map = pd.read_csv(self.path_mod_a2group_map,sep = '\t')
+        feats_b_map = pd.read_csv(self.path_mod_b2group_map, sep = '\t')
+        return feats_a_map, feats_b_map
 
 
     def extend_pairs(self):  

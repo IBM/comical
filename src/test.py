@@ -60,6 +60,7 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
     soft_logits_seq_l = []
     soft_logits_idp_l = []
     data_auc_plot = {'preds':[],'target':[]}
+    gen_emb_l, idp_emb_l, cov_l = [], [], []
     # Added classification and regression losses - Added 2024.01.10 - Yet to be debugged
     if config['out_flag'] == 'clf' or config['out_flag'] == 'mlp':
         loss_clf = nn.CrossEntropyLoss()
@@ -76,7 +77,13 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
             covariates = None if config['out_flag'] == 'pairs' else covariates.to(device).float()
 
             if config['save_embeddings']:
-                logits_seq, logits_idp, _,_  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                if config['out_flag'] == 'pairs':
+                    logits_seq, logits_idp, _,_  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
+                else:
+                    pred, gen_emb,idp_emb = model(seq,snp_id,idp,idp_id,config['save_embeddings'],covariates)
+                    gen_emb_l.append(gen_emb)
+                    idp_emb_l.append(idp_emb)
+                    cov_l.append(covariates.detach().cpu().numpy())
             else:
                 if config['out_flag'] == 'pairs':
                     logits_seq, logits_idp  = model(seq,snp_id,idp,idp_id,config['save_embeddings'])
@@ -88,7 +95,8 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
                 ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
                 total_loss += (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
             else:
-                total_loss += loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                # total_loss += loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
+                total_loss = 0.01 # FIXME: temporary fix to avoid loss calculation for now, remove later
             
             # Inputs and Outputs per batch for returning
             seq_l.extend(seq.detach().cpu().numpy())
@@ -117,6 +125,9 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
                 probs = np.argmax(pred.softmax(dim=-1).cpu().numpy(), axis = 1)
                 # Calculte accuracy per batch
                 # acc += np.sum(probs == target.cpu().numpy()) / len(probs)
+                # FIXME: Add a column with zeros to pred to match shape - delete later! just to run old code and obtain emebdddings
+                pred = torch.cat((pred, torch.ones((pred.shape[0],1), device=device)), dim=1)
+
                 data_auc_plot['preds'].extend(pred.softmax(dim=-1).cpu().numpy()[:,1])
                 data_auc_plot['target'].extend(target.cpu().numpy())
                 acc += compute_auc(pred.softmax(dim=-1).cpu().numpy()[:,1],target.cpu().numpy()) #substitue AUC for accuracy
@@ -129,8 +140,9 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
                 sm_results = sm_model.fit()
                 r2_adj = sm_results.rsquared_adj
                 r2 = sm_results.rsquared
-  
                 acc += r2
+                data_auc_plot['preds'].extend(np.concatenate((pred_prs, covariates.cpu().numpy()), axis=1))
+                data_auc_plot['target'].extend(target.cpu().numpy())
             else:
                 # Calculte MSE per batch
                 acc += F.mse_loss(pred.squeeze(-1),target).item()
@@ -138,6 +150,10 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
     # Full test set metric computation
     total_loss /= (batch_idx+1)
     acc /= (batch_idx+1)
+
+    np.concatenate(gen_emb_l).dump('gen_emb_'+str(args['top_n_perc'])+'.npy')
+    np.concatenate(idp_emb_l).dump('idp_emb_'+str(args['top_n_perc'])+'.npy')
+    np.concatenate(cov_l)[:,:2].dump('cov_'+str(args['top_n_perc'])+'.npy')
 
     # if config['out_flag'] == 'pairs':
         # max_length = max(len(lst) for lst in master_pair_freq_dict.values())

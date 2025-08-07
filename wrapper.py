@@ -32,22 +32,22 @@ def parse_arguments():
 
     # Results path
     parser.add_argument("-pr", "--path_res", dest='path_res', action='store', help="Output folder", metavar="PR", default=os.path.join(os.getcwd(),'results')) ##
-    parser.add_argument("-pck", "--path_ckpt", dest='path_ckpt', action='store', help="Model Checkpoint folder", metavar="PCK") 
+    parser.add_argument("-pck", "--path_ckpt", dest='path_ckpt', action='store', help="Model Checkpoint folder", metavar="PCK", default='/fast/machad/comical/ray_results/train_2024-07-25_13-57-49/train_fc3fb_00000_0_lr=0.0019,warmup_steps=3800.2905,weight_decay=0.0162_2024-07-25_13-58-35/checkpoint_000009/checkpoint.pt |') 
 
     # Filenaming format
-    parser.add_argument("-fo", "--fname_out_root", dest='fname_out_root', action='store', help='Enter prefix name for output files', metavar='FNAMEROOT', default='Unamed_run')
+    parser.add_argument("-fo", "--fname_out_root", dest='fname_out_root', action='store', help='Enter prefix name for output files', metavar='FNAMEROOT', default='top5_emb_plotting') #Unamed_run
 
     # Training parameters
     parser.add_argument("-rnd_sed", "--random_seed", dest='random_seed', action='store', help='Enter random seed to be used for data splits', metavar='RNDSEED', default='42')
     parser.add_argument("-vsz", "--val_sz", dest='val_size', action='store', help='Enter percentage of data used for validation data split (eg. 20)', metavar='VALSZ', default='20')
-    parser.add_argument("-tsz", "--test_sz", dest='test_size', action='store', help='Enter percentage of data used for test data split (eg. 10)', default='10')
+    parser.add_argument("-tsz", "--test_sz", dest='test_size', action='store', help='Enter percentage of data used for test data split (eg. 10)', default='5')
     parser.add_argument("-gpu", "--gpu_nums", dest='gpu_nums', action='store', help="Enter the gpus to use", metavar="GPU")
     parser.add_argument("-ngpu", "--num_gpus_avail", dest='num_gpus_avail', action='store', help="Enter the number of gpus available", metavar="NGPU", default='1')
     parser.add_argument("-tune", "--tune_flag", dest='tune_flag', action='store', help="Enter 1 if you want to tune, 0 to just run experiments", metavar="TUNE", default='0')
     parser.add_argument("-gpu_tr", "--gpus_per_trial", dest='gpus_per_trial', action='store', help="Enter the number of gpus per trial to use", metavar="GPUTRIAL", default='1')
-    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='64') #32768
+    parser.add_argument("-bz", "--batch_size", dest='batch_size', action='store', help="Enter the batch size", metavar="BZ", default='16384') #32768 #64 -> for clf, for pairs it throws nans
     parser.add_argument("-lr", "--learning_rate", dest='learning_rate', action='store', help="Enter the learning rate", metavar="LR", default='0.01') #0.05 - 0.001
-    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='10') # 10 - 25
+    parser.add_argument("-e", "--epochs", dest='epochs', action='store', help="Enter the max epochs", metavar="EPOCHS", default='25') # 10 - 25
     parser.add_argument("-nl", "--num_layers", dest='num_layers', action='store', help="Enter the number of transformer layers", metavar="NUMLAY", default='2')
     parser.add_argument("-dm", "--d_model", dest='d_model', action='store', help="Enter the model dimensions", metavar="DIMS", default='64')
     parser.add_argument("-nh", "--n head", dest='nhead', action='store', help="Enter the number of heads on MHA", metavar="MHA", default='4')
@@ -59,14 +59,14 @@ def parse_arguments():
     parser.add_argument("-be", "--beta", dest='beta', action='store', help="Enter the beta value for the loss function", metavar="BETA", default='0.5')
     
     # Run specifications
-    parser.add_argument("-svemb", "--save_embeddings", dest='save_embeddings', action='store', help='Enter 1 if want to save embeddings', metavar='SVEMB', default='0')
-    parser.add_argument("-pltemb", "--plot_embeddings", dest='plot_embeddings', action='store', help='Enter 1 if want to plot embeddings, note this process can take a long time and a lot of memory.', metavar='PLTEMB', default='0')
-    parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use (e.g. 10%). Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='0.5') # 0.5
+    parser.add_argument("-svemb", "--save_embeddings", dest='save_embeddings', action='store', help='Enter 1 if want to save embeddings', metavar='SVEMB', default='1') # 0
+    parser.add_argument("-pltemb", "--plot_embeddings", dest='plot_embeddings', action='store', help='Enter 1 if want to plot embeddings, note this process can take a long time and a lot of memory.', metavar='PLTEMB', default='1')
+    parser.add_argument("-top_n_perc", "--top_n_perc", dest='top_n_perc', action='store', help='Enter top n percentage of snps to use (e.g. 10%). Note: if not generating pairs, it must match the dataset top n value.', metavar='TOPN', default='5') # 0.5
     parser.add_argument("-resume", "--resume_from_batch", dest='resume_from_batch', action='store', help='Enter 1 if want to resume training from last batch checkpoint. Note: default = 0', metavar='RESUME', default='0')
     parser.add_argument("-ckpt_name", "--ckpt_name", dest='ckpt_name', action='store', help='Enter checkpoint name from batch to resume training.', metavar='ckpt_name', default='None')
-    parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='1')
-    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or pairs for training encoders for pair association.', metavar='OUTFLAG', default='reg') #pairs
-    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='BD_PRS') # FAKE_PRS - neurological
+    parser.add_argument("-dwn", "--downstream_pred_task_flag", dest='downstream_pred_task_flag', action='store', help='Enter 1 if want to train and evaluate with target based prediction (frozen encoders), used for downstream prediction.', metavar='SBP', default='0')
+    parser.add_argument("-out_flag", "--out_flag", dest='out_flag', action='store', help='Enter clf for classification, reg for regression, or pairs for training encoders for pair association.', metavar='OUTFLAG', default='pairs') #pairs
+    parser.add_argument("-target", "--target", dest='target', action='store', help='Enter the target to train classifier head.', metavar='TARGET', default='PD') # FAKE_PRS - neurological , PD_PRS
     parser.add_argument("-idx_col", "--index_col", dest='index_col', action='store', help='Enter the index column for the modality a and b data files.', metavar='IDXCOL', default='eid')
     parser.add_argument("-feat_a_idx_col", "--feat_a_index_col", dest='feat_a_index_col', action='store', help='Enter the index column for the modality a data file.', metavar='FEATAIDXCOL', default='SNPs')
     parser.add_argument("-feat_b_idx_col", "--feat_b_index_col", dest='feat_b_index_col', action='store', help='Enter the index column for the modality b data file.', metavar='FEATBIDXCOL', default='IDPs')

@@ -22,7 +22,7 @@ import tempfile
 
 from torch.utils.tensorboard import SummaryWriter
 from src.models import comical, comical_new_emb, comical_new_emb_clasf,mlp_only
-from src.utils import EarlyStopper, calculate_acc, calculate_decile_acc
+from src.utils import EarlyStopper, calculate_acc, calculate_decile_acc, emb_wg_plot, emb_wg_itm_plot
 from sklearn.utils.class_weight import compute_class_weight
 from tabulate import tabulate
 from src.batch_sampler import UniquePairBatchSampler
@@ -142,7 +142,10 @@ def train(config, data=None, checkpoint_dir=None):
     val_losses = []
     val_accs = []
     uniqueness = {'seq_a_uniques': [], 'seq_b_uniques': []}
-    embs={'seq_a_embs':[], 'seq_b_embs':[]} 
+    # embs={'seq_a_embs':[], 'seq_b_embs':[]} 
+    # Initialize dictionaries to hold embeddings associated with each unique ID.
+    embs_a = {}  # This will store {'id_a': [seq_a_emb1, seq_a_emb2, ...]}
+    embs_b = {}  # This will store {'id_b': [seq_b_emb1, seq_b_emb2, ...]}
 
     if tune:
         checkpoint = ray.train.get_checkpoint()
@@ -167,17 +170,40 @@ def train(config, data=None, checkpoint_dir=None):
             seq_a,input_a_id,seq_b,input_b_id = seq_a.to(device).long(),input_a_id.to(device).long(),seq_b.to(device).long(),input_b_id.to(device).long()
             target = None if config['out_flag'] == 'pairs' else target.to(device).float()
             covariates = None if config['out_flag'] == 'pairs' else covariates.to(device).float()
-            # Different outputs depening if returning embeddings
+            # Different outputs depending on whether we're saving embeddings
             if config['save_embeddings']:
-                logits_seq_a, logits_seq_b, gen_emb, seq_b_emb = model(seq_a,input_a_id,seq_b,input_b_id,config['save_embeddings'])
-                embs['seq_a_embs'].extend(gen_emb)
-                embs['seq_b_embs'].extend(seq_b_emb)
+                # Define how many embeddings per ID we want to keep
+                # max_embs_per_id = config.get('max_embs_per_id', 5)
+                max_embs_per_id = 5
+
+                # Forward pass returns embeddings
+                logits_seq_a, logits_seq_b, gen_emb, seq_b_emb = model(
+                    seq_a, input_a_id, seq_b, input_b_id, config['save_embeddings']
+                )
+
+                # Collect up to `max_embs_per_id` embeddings for each id_a
+                for id_a, emb in zip(input_a_id.cpu().numpy(), gen_emb):
+                    emb_list = embs_a.get(id_a, [])
+                    if len(emb_list) < max_embs_per_id:
+                        emb_list.append(emb)
+                        embs_a[id_a] = emb_list
+
+                # Collect up to `max_embs_per_id` embeddings for each id_b
+                for id_b, emb in zip(input_b_id.cpu().numpy(), seq_b_emb):
+                    emb_list = embs_b.get(id_b, [])
+                    if len(emb_list) < max_embs_per_id:
+                        emb_list.append(emb)
+                        embs_b[id_b] = emb_list
+
             else:
                 if config['out_flag'] == 'pairs':
-                    logits_seq_a, logits_seq_b  = model(seq_a,input_a_id,seq_b,input_b_id,config['save_embeddings'])
+                    logits_seq_a, logits_seq_b = model(
+                        seq_a, input_a_id, seq_b, input_b_id, config['save_embeddings']
+                    )
                 else:
-                    pred  = model(seq_a,input_a_id,seq_b,input_b_id,config['save_embeddings'],covariates)
-                
+                    pred = model(
+                        seq_a, input_a_id, seq_b, input_b_id, config['save_embeddings'], covariates
+                    )
             if config['out_flag'] == 'pairs':
                 ground_truth = torch.arange(len(seq_a),dtype=torch.long,device=device)
                 # ground_truth_conditioned = torch.arange(len(seq_a),dtype=torch.long,device=device)
@@ -218,8 +244,8 @@ def train(config, data=None, checkpoint_dir=None):
                 covariates = None if config['out_flag'] == 'pairs' else covariates.to(device).float()
                 if config['save_embeddings']:
                     logits_seq_a, logits_seq_b, gen_emb, seq_b_emb  = model(seq_a,input_a_id,seq_b,input_b_id,config['save_embeddings'])
-                    embs['seq_a_embs'].extend(gen_emb)
-                    embs['seq_b_embs'].extend(seq_b_emb)
+                    # embs['seq_a_embs'].extend(gen_emb)
+                    # embs['seq_b_embs'].extend(seq_b_emb)
                 else:
                     if config['out_flag'] == 'pairs':
                         logits_seq_a, logits_seq_b  = model(seq_a,input_a_id,seq_b,input_b_id,config['save_embeddings'])
@@ -283,6 +309,19 @@ def train(config, data=None, checkpoint_dir=None):
             print(f'Training loss= {sum_loss} at epoch {epoch}')
             print(f'Vaidation loss= {total_val_loss.item()/val_steps} at epoch {epoch}')
 
+        # Plot embedding weigths to show training progress - get the weights the embedding layers and send out to plot
+        if config['plot_embeddings']:
+            os.makedirs(os.path.join(os.getcwd(),'results',config['fname_root_out'],'emb_plots'), exist_ok=True)
+            # Get the weights of the embedding layers
+            # gen_emb_weight, snp_id_emb_weight, idp_emb_weight, idp_id_emb_weight = model.get_embeddings()
+            gen_emb_weight, snp_id_emb_weight, idp_emb_weight, idp_id_emb_weight = model.gen_emb.weight.cpu().detach().numpy(), model.snp_id_emb.weight.cpu().detach().numpy(), model.idp_emb.weight.cpu().detach().numpy(), model.idp_id_emb.weight.cpu().detach().numpy()
+            feats_a_map, feats_b_map = data.get_disease_idp_snp_map()
+            # Plot the weights
+            emb_wg_plot(os.path.join(os.getcwd(),'results',config['fname_root_out'],'emb_plots'),[gen_emb_weight, snp_id_emb_weight, idp_emb_weight, idp_id_emb_weight], epoch, dd_seq_b, dd_seq_a, seq_b_id_map, seq_a_id_map, feats_a_map, feats_b_map)
+            # Plot by embeddings
+            emb_wg_itm_plot(os.path.join(os.getcwd(),'results',config['fname_root_out'],'emb_plots'), [embs_a,embs_b],epoch, dd_seq_b, dd_seq_a, seq_b_id_map, seq_a_id_map, feats_a_map, feats_b_map)
+
+
         # Early stopping
         if config['early_stopper_flag']:
             if early_stopper.early_stop(total_val_loss):
@@ -296,9 +335,9 @@ def train(config, data=None, checkpoint_dir=None):
         # Save embeddings
         if config['save_embeddings']:
             with open(os.path.join(os.getcwd(),'results',config['results_path'],'embs.pickle'), "wb") as outfile:
-                pickle.dump(embs,outfile)
-        if config['plot_embeddings']:
-            emb_plot(os.path.join(os.getcwd(),'results',config['fname_root_out']),embs)
+                pickle.dump([embs_a,embs_b],outfile)
+        # if config['plot_embeddings']: # Deprecated - too resource intensive
+        #     emb_plot(os.path.join(os.getcwd(),'results',config['fname_root_out']),embs)
 
         if config['out_flag'] == 'clf':
             uniqueness = None
