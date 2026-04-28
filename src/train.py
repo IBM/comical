@@ -53,10 +53,17 @@ def train(config, data=None, checkpoint_dir=None):
     model = comical_new_emb(config) if config['out_flag']=='pairs' else mlp_only(config) if config['out_flag']=='mlp' else comical_new_emb_clasf(config)
 
     # If pre-trained model is used, load the weights
-    # if config['out_flag'] == 'clf' or config['out_flag'] == 'reg':
-    #     config['pretrained_model_path'] = '/home/machad/fast/comical/ray_results/train_2024-06-05_10-25-07/train_89522_00000_0_batch_size=4096,d_model=64,dim_feedforward=64,lr=0.0033,warmup_steps=236.5525,weight_decay=0.0015_2024-06-05_10-26-02/checkpoint_000009/checkpoint.pt'
-    #     model.load_state_dict(torch.load(config['pretrained_model_path']))
-    
+    if config['out_flag'] in ['clf', 'reg'] and str(config.get('ckpt_name', 'None')) != 'None':
+        ckpt = torch.load(config['ckpt_name'], map_location='cpu')
+        state_dict = ckpt.get('model_state', ckpt.get('model_state_dict'))
+        if state_dict is None:
+            raise KeyError(f"Could not find model weights in checkpoint keys: {list(ckpt.keys())}")
+        state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+        missing, unexpected = model.load_state_dict(state_dict, strict=False)
+        print(f'Loaded pretrained weights from {config["ckpt_name"]}')
+        print(f'  Missing keys (newly initialised): {missing}')
+        print(f'  Unexpected keys (ignored): {unexpected}')
+
     # Freeze encoders for pre-trained model
     if config['out_flag'] == 'clf' or config['out_flag'] == 'reg':
         for param in model.parameters():

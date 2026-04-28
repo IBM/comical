@@ -72,8 +72,8 @@ def train_eval(paths, args, config = None):
             'subject_based_pred_flag':args['downstream_pred_task_flag'],
             'out_flag':args['out_flag'],
             'target':args['target'],
-            'warmup_steps' : 2000, # using 2000 as recommended in clip paper, 
-            'num_classes': 1,#2 if args['out_flag'] == 'clf' else 1,
+            'warmup_steps' : 100 if args['out_flag'] in ['clf','reg'] else 2000,
+            'num_classes': 2 if args['out_flag'] == 'clf' else 1,
             'decile':args['decile'],
             'early_stopper_flag':args['early_stopper_flag'],
             'alpha':args['alpha'],
@@ -165,12 +165,8 @@ def train_eval(paths, args, config = None):
     else:
         train_losses, val_losses, val_accs, uniqueness = train(config, data=data, checkpoint_dir = paths['checkpoint_name'])
         # Select checkpoint with the lowest loss on validation set
-        # best_epoch = np.argmin(val_losses)
-        # best_epoch = np.argmin(val_losses)+int(len(val_losses)*0.2)# balancing convergence and overfitting
-        # best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
-
-        # best_checkpoint_path = paths['checkpoint_name']
-        best_checkpoint_path = '/home/machad/fast/comical/data/BD_10_checkpoint_epoch_2499.pt'
+        best_epoch = np.argmin(val_losses)
+        best_checkpoint_path = os.path.join(paths['checkpoint_name'], f'checkpoint_epoch_{best_epoch}.pt')
         # train_losses = [0.1,0.2,0.3,0.4,0.5]
         # val_losses = [0.1,0.2,0.3,0.4,0.5]
         # val_accs = [0.1,0.2,0.3,0.4,0.5]

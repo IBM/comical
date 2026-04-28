@@ -95,8 +95,7 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
                 ground_truth = torch.arange(len(seq),dtype=torch.long,device=device)
                 total_loss += (loss_seq(logits_seq,ground_truth) + loss_idp(logits_idp,ground_truth))/2
             else:
-                # total_loss += loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
-                total_loss = 0.01 # FIXME: temporary fix to avoid loss calculation for now, remove later
+                total_loss += loss_clf(pred,target.long()) if config['out_flag'] == 'clf' else loss_reg(pred,target)
             
             # Inputs and Outputs per batch for returning
             seq_l.extend(seq.detach().cpu().numpy())
@@ -125,8 +124,6 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
                 probs = np.argmax(pred.softmax(dim=-1).cpu().numpy(), axis = 1)
                 # Calculte accuracy per batch
                 # acc += np.sum(probs == target.cpu().numpy()) / len(probs)
-                # FIXME: Add a column with zeros to pred to match shape - delete later! just to run old code and obtain emebdddings
-                pred = torch.cat((pred, torch.ones((pred.shape[0],1), device=device)), dim=1)
 
                 data_auc_plot['preds'].extend(pred.softmax(dim=-1).cpu().numpy()[:,1])
                 data_auc_plot['target'].extend(target.cpu().numpy())
@@ -151,9 +148,10 @@ def test_model(config, args, data=None, subset_index=None, best_checkpoint_name=
     total_loss /= (batch_idx+1)
     acc /= (batch_idx+1)
 
-    np.concatenate(gen_emb_l).dump('gen_emb_'+str(args['top_n_perc'])+'.npy')
-    np.concatenate(idp_emb_l).dump('idp_emb_'+str(args['top_n_perc'])+'.npy')
-    np.concatenate(cov_l)[:,:2].dump('cov_'+str(args['top_n_perc'])+'.npy')
+    if config['save_embeddings']:
+        np.concatenate(gen_emb_l).dump('gen_emb_'+str(args['top_n_perc'])+'.npy')
+        np.concatenate(idp_emb_l).dump('idp_emb_'+str(args['top_n_perc'])+'.npy')
+        np.concatenate(cov_l)[:,:2].dump('cov_'+str(args['top_n_perc'])+'.npy')
 
     # if config['out_flag'] == 'pairs':
         # max_length = max(len(lst) for lst in master_pair_freq_dict.values())
